@@ -13,7 +13,7 @@ function LoginPage() {
     setErrorMsg(''); // clear previous errors
 
     try {
-      const res = await fetch('http://localhost:5000/auth/login', {
+      const res = await fetch('http://localhost:5001/auth/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -68,10 +68,6 @@ function LoginPage() {
 
         <button type="submit">Login</button>
       </form>
-
-      <div style={{ marginTop: '1rem' }}>
-        <small>New user? <Link to="/auth/register">Create an account</Link></small>
-      </div>
     </div>
   );
 }

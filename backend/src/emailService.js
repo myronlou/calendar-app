@@ -54,4 +54,43 @@ const sendBookingUpdate = async (toEmail, eventTitle) => {
     await transporter.sendMail(mailOptions);
 };
 
-module.exports = { sendVerificationEmail, sendBookingConfirmation, sendBookingUpdate };
+// 📩 Booking Cancellation Email
+const sendBookingCancellation = async (toEmail, eventTitle) => {
+    const mailOptions = {
+        from: `"Rideawave" <noreply@keketec.com>`,
+        to: toEmail,
+        subject: `Your Event "${eventTitle}" Has Been Cancelled`,
+        text: `Dear User,\n\nWe regret to inform you that your event "${eventTitle}" has been cancelled. If this was a mistake or if you need assistance, please contact support.\n\nBest Regards,\nRideawave Team`,
+        html: emailTemplate("Event Cancellation Notice", 
+            `Your event <strong>${eventTitle}</strong> has been cancelled. If this was a mistake, please contact support.`)
+    };
+    await transporter.sendMail(mailOptions);
+};
+
+// 📩 Event Reminder Email (Sent 24 hours before the event)
+const sendEventReminder = async (toEmail, eventTitle, eventStart) => {
+    const mailOptions = {
+        from: `"Rideawave" <noreply@keketec.com>`,
+        to: toEmail,
+        subject: `Reminder: Your Event "${eventTitle}" is Tomorrow`,
+        text: `This is a friendly reminder that your event "${eventTitle}" is scheduled for ${eventStart}.`,
+        html: emailTemplate("Event Reminder", 
+            `This is a reminder that your event <strong>${eventTitle}</strong> is scheduled for <strong>${eventStart}</strong>.`)
+    };
+    await transporter.sendMail(mailOptions);
+};
+
+// 📩 Admin Notification for New Booking
+const sendAdminNotification = async (adminEmail, eventTitle, customerEmail) => {
+    const mailOptions = {
+        from: `"Rideawave" <noreply@keketec.com>`,
+        to: adminEmail,
+        subject: `New Event Booking: "${eventTitle}"`,
+        text: `A new event "${eventTitle}" has been booked by ${customerEmail}.`,
+        html: emailTemplate("New Booking Notification", 
+            `A new event <strong>${eventTitle}</strong> has been booked by <strong>${customerEmail}</strong>.`)
+    };
+    await transporter.sendMail(mailOptions);
+};
+
+module.exports = { sendVerificationEmail, sendBookingConfirmation, sendBookingUpdate, sendBookingCancellation, sendEventReminder, sendAdminNotification };

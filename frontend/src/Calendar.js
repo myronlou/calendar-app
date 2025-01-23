@@ -23,41 +23,53 @@ function Calendar() {
 
   const navigate = useNavigate();
 
-  useEffect(() => {
+  // -- 1) Wrap your fetch in a function
+  const fetchEvents = async () => {
     const token = localStorage.getItem('token');
     if (!token) {
       navigate('/auth/login');
       return;
     }
 
-    // Fetch events from the server
-    fetch('http://localhost:5001/api/admin/events', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          // Convert to FullCalendar format if needed
-          setEvents(
-            data.map((evt) => ({
-              id: evt.id,
-              title: evt.title,
-              start: evt.start,
-              end: evt.end,
-              fullName: evt.fullName,
-              email: evt.email,
-              phone: evt.phone,
-            }))
-          );
-        } else if (data.error) {
-          alert(data.error);
-          navigate('/auth/login');
-        }
-      })
-      .catch((err) => {
-        console.error(err);
-        navigate('/auth/login');
+    try {
+      const res = await fetch('http://localhost:5001/api/admin/events', {
+        headers: { Authorization: `Bearer ${token}` },
       });
+      const data = await res.json();
+
+      if (Array.isArray(data)) {
+        setEvents(
+          data.map((evt) => ({
+            id: evt.id,
+            title: evt.title,
+            start: evt.start,
+            end: evt.end,
+            fullName: evt.fullName,
+            email: evt.email,
+            phone: evt.phone
+          }))
+        );
+      } else if (data.error) {
+        alert(data.error);
+        navigate('/auth/login');
+      }
+    } catch (err) {
+      console.error(err);
+      navigate('/auth/login');
+    }
+  };
+
+  // -- 2) useEffect for initial load + setInterval
+  useEffect(() => {
+    fetchEvents(); // fetch initially
+
+    // Poll every 5 seconds (5000 ms)
+    const intervalId = setInterval(() => {
+      fetchEvents();
+    }, 20000);
+
+    // Cleanup on unmount
+    return () => clearInterval(intervalId);
   }, [navigate]);
 
   // ---- CREATE EVENT ----
@@ -121,12 +133,12 @@ function Calendar() {
   };
 
   // ---- EDIT EVENT ----
-  // (unchanged for now, but you'll do a PUT if you want to update on the server)
   const handleEventClick = (info) => {
     const event = events.find((evt) => evt.id === parseInt(info.event.id));
     if (event) {
       setSelectedEvent(event);
       setFormData({
+        id: event.id,  // ✅ Ensure ID is included
         fullName: event.fullName,
         email: event.email,
         phone: event.phone,
@@ -137,6 +149,49 @@ function Calendar() {
       setShowEditModal(true);
     }
   };
+
+  const handleUpdateEvent = async (updatedEvent) => {
+    const token = localStorage.getItem('token');
+    if (!token || !selectedEvent) return;
+  
+    try {
+      const response = await fetch(`http://localhost:5001/api/admin/events/${selectedEvent.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          fullName: updatedEvent.fullName,
+          email: updatedEvent.email,
+          phone: updatedEvent.phone,
+          title: updatedEvent.title,
+          start: updatedEvent.start,
+          end: updatedEvent.end
+        }),
+      });
+  
+      if (!response.ok) {
+        throw new Error('Failed to update event');
+      }
+  
+      const updatedData = await response.json();
+  
+      // Update the local state
+      setEvents((prevEvents) => {
+        const newEvents = prevEvents.map((event) =>
+          event.id === updatedData.id ? { ...event, ...updatedData } : event
+        );
+        console.log("After update:", newEvents);
+        return newEvents;
+      });
+  
+      setShowEditModal(false); // Close the modal after updating
+    } catch (error) {
+      console.error('Error updating event:', error);
+    }
+  };
+  
 
   // ---- DELETE EVENT ----
   const handleDelete = async () => {
@@ -181,6 +236,7 @@ function Calendar() {
         onClose={() => setShowEditModal(false)}
         formData={formData}
         setFormData={setFormData}
+        onUpdate={handleUpdateEvent}
         onDelete={handleDelete}
       />
     </div>

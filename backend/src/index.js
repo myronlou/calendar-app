@@ -117,7 +117,7 @@ app.post('/api/admin/events', authMiddleware, async (req, res) => {
 app.put('/api/admin/events/:id', authMiddleware, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { title, start, end } = req.body;
+    const { title, start, end, fullName, email, phone } = req.body;
 
     const updatedEvent = await prisma.event.update({
       where: { id },
@@ -125,13 +125,16 @@ app.put('/api/admin/events/:id', authMiddleware, async (req, res) => {
         title,
         start: new Date(start),
         end: new Date(end),
+        fullName,
+        email,
+        phone
       },
     });
 
     // Optionally send an update email
     await sendBookingUpdate(updatedEvent.email, updatedEvent.title);
 
-    res.json({ message: 'Event updated by admin.' });
+    res.json(updatedEvent);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });

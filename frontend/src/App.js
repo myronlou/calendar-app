@@ -2,22 +2,27 @@ import logo from './logo.svg';
 import './App.css';
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-//import RegisterPage from './RegisterPage';
-import VerifyPage from './VerifyPage';
-import LoginPage from './LoginPage';
+
+import { LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+
+import HomePage from './HomePage';
 import Calendar from './Calendar';
+import LoginPage from './LoginPage';
+import VerifyPage from './VerifyPage';
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        {/*<Route path="/auth/register" element={<RegisterPage />} />*/}
-        <Route path="/auth/verify" element={<VerifyPage />} />
-        <Route path="/auth/login" element={<LoginPage />} />
-        {/* Protect the calendar route by checking token in <Calendar /> */}
-        <Route path="/" element={<Calendar />} />
-      </Routes>
-    </Router>
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <Router>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/auth/verify" element={<VerifyPage />} />
+          <Route path="/auth/login" element={<LoginPage />} />
+          <Route path="/calendar" element={<Calendar />} />
+        </Routes>
+      </Router>
+    </LocalizationProvider>
   );
 }
 

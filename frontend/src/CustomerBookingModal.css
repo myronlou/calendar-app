@@ -1,0 +1,261 @@
+/* CustomerBookingModal.css */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.4); /* Slightly lighter overlay */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+  }
+  
+  .modal-content {
+    background-color: white !important;
+    padding: 2rem;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    position: relative;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1); /* Softer shadow */
+    max-height: none; /* Remove max-height constraint */
+    overflow-y: visible;
+    border-radius: 16px !important;
+  }
+  
+  .close-button {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #666;
+    padding: 0 0.5rem;
+    transition: color 0.2s ease;
+  }
+  
+  .close-button:hover {
+    color: #000;
+  }
+  
+  .modal-title {
+    text-align: center;
+    margin: 1rem 0 1.5rem;
+    color: #000;
+    font-size: 1.8rem;
+  }
+  
+  .error-message {
+    color: #ff4444;
+    text-align: center;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .animation-container {
+    position: relative;
+    flex-grow: 1; /* Make container expand */
+    display: flex;
+    flex-direction: column;
+    overflow: visible; /* Changed from hidden */
+  }
+  
+  .step-content {
+    position: relative;
+    width: 100%;
+    padding: 0 0.5rem;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem; /* Add spacing between form items */
+  }
+  
+  .input-group {
+    margin-bottom: 0; /* Remove bottom margin */
+    flex-shrink: 0; /* Prevent form items from shrinking */
+  }
+  
+  .input-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #333;
+    font-weight: 500;
+  }
+  
+  .input-group input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid #eee;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s ease;
+  }
+  
+  .input-group input:focus {
+    border-color: #FFC72C;
+    outline: none;
+  }
+  
+  .phone-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid #eee;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s ease;
+  }
+  
+  .input-error {
+    color: #ff4444;
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+  }
+  
+  .duration-note {
+    font-size: 0.9rem;
+    color: #666;
+    margin-top: 1rem;
+  }
+  
+  .otp-instruction {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    color: #333;
+  }
+  
+  .otp-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid #eee;
+    border-radius: 8px;
+    font-size: 1.2rem;
+    text-align: center;
+  }
+  
+  .success-content {
+    text-align: center;
+    padding: 2rem 0;
+  }
+  
+  .success-message {
+    color: #28a745;
+    margin-bottom: 1rem;
+    font-size: 1.5rem;
+  }
+  
+  .success-text {
+    color: #666;
+    font-size: 1rem;
+  }
+  
+  .button-container {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+  
+  .back-button {
+    padding: 0.75rem 1.5rem;
+    background-color: #f0f0f0;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #333;
+    font-weight: 500;
+  }
+  
+  .next-button {
+    padding: 0.75rem 1.5rem;
+    background-color: #FFC72C;
+    color: #333;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background-color 0.2s ease;
+  }
+  
+  .next-button:disabled {
+    background-color: #f0f0f0;
+    cursor: not-allowed;
+  }
+  
+  .done-button {
+    padding: 0.75rem 1.5rem;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  
+  .loading-icon {
+    height: 20px;
+    vertical-align: middle;
+  }
+  
+  .react-tel-input {
+    width: 100% !important;
+  }
+
+  .react-tel-input .form-control {
+    width: 100% !important;
+    height: auto !important;
+    padding: 0.75rem 0.75rem 0.75rem 48px !important;
+  }
+  
+  /* Phone Input Customization */
+  .react-tel-input .flag-dropdown {
+    border: 1px solid #e0e0e0 !important;
+    background-color: #f8f8f8 !important;
+    border-radius: 8px 0 0 8px !important;
+  }
+  
+  .react-tel-input .selected-flag {
+    background: #f8f8f8 !important;
+    border-radius: 8px 0 0 8px !important;
+  }
+
+  .react-tel-input .selected-flag:hover {
+    background-color: #eee !important;
+  }
+  
+  .react-tel-input .flag-dropdown.open {
+    background-color: rgba(255, 199, 44, 0.1) !important;
+  }
+
+  .button-container {
+    margin-top: auto; /* Push buttons to bottom */
+    padding-top: 2rem;
+  }
+  
+  .input-group input, .phone-input {
+  border: 1px solid #e0e0e0 !important;
+  background-color: #f8f8f8 !important;
+  padding: 12px 16px !important;
+}
+  
+  /* Animations */
+  @keyframes slideNext {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  
+  @keyframes slidePrev {
+    from { transform: translateX(-100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  
+  .animation-container.next .step-content {
+    animation: slideNext 0.3s forwards;
+  }
+  
+  .animation-container.prev .step-content {
+    animation: slidePrev 0.3s forwards;
+  }

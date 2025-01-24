@@ -244,7 +244,7 @@ app.post('/api/events/verify', async (req, res) => {
     await sendBookingConfirmation(event.email, event.title);
 
     //send admin email
-    await sendAdminNotification(process.env.ADMIN_EMAIL, title, email);
+    await sendAdminNotification(process.env.ADMIN_EMAIL, event.title, event.email);
 
     res.json({ message: 'Event verified and confirmed' });
   } catch (error) {

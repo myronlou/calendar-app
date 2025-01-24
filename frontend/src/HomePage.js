@@ -1,28 +1,48 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import CustomerBookingModal from './CustomerBookingModal';
 
 function HomePage() {
   const navigate = useNavigate();
 
+  // Track if the booking modal is open
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+
   const goToCalendar = () => {
-    // If the user is not logged in, it will redirect to /auth/login if your Calendar checks for token
     navigate('/calendar');
+  };
+
+  // Open the modal
+  const openBookingModal = () => {
+    setIsBookingModalOpen(true);
+  };
+
+  // Close the modal
+  const closeBookingModal = () => {
+    setIsBookingModalOpen(false);
   };
 
   return (
     <div style={{ textAlign: 'center', marginTop: '2rem' }}>
       <h1>Welcome to Rideawave!</h1>
-      <p>
-        This is our public info page. Learn more about our awesome services here!
-      </p>
+      <p>This is our public info page. Learn more about our awesome services here!</p>
 
-      {/* Button to go to /calendar */}
       <button onClick={goToCalendar}>
         Go to Calendar (Admin)
       </button>
+
+      {/* Button to open modal */}
+      <button onClick={openBookingModal} style={{ marginLeft: '1rem' }}>
+        Book an Appointment
+      </button>
+
+      {/* Our new Customer Booking Modal */}
+      <CustomerBookingModal
+        isOpen={isBookingModalOpen}
+        onClose={closeBookingModal}
+      />
     </div>
   );
 }
 
 export default HomePage;
-

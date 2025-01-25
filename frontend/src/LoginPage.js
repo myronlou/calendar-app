@@ -24,7 +24,7 @@ function LoginPage() {
         // Store token
         localStorage.setItem('token', data.token);
         // Navigate to home (calendar)
-        navigate('/');
+        navigate('/admin/calendar');
       } else {
         // Show error message on screen
         setErrorMsg(data.error || 'Login failed');

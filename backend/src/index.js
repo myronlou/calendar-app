@@ -6,6 +6,11 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const authMiddleware = require('./authMiddleware');
+const verifyEditToken = require('./editTokenMiddleware');
+const crypto = require('crypto');
+const helmet = require('helmet');
+const hpp = require('hpp');
+const rateLimit = require('express-rate-limit');
 const { sendVerificationEmail, sendBookingConfirmation, sendBookingUpdate, sendBookingCancellation, sendEventReminder, sendAdminNotification} = require('./emailService');
 
 const app = express();
@@ -59,13 +64,28 @@ app.post('/auth/admin/login', async (req, res) => {
 // 1) GET all events (admin)
 app.get('/api/admin/events', authMiddleware, async (req, res) => {
   try {
-    const allEvents = await prisma.event.findMany({
-      orderBy: { start: 'asc' },
-    });
-    res.json(allEvents);
+      const allEvents = await prisma.event.findMany({
+          orderBy: { start: 'asc' },
+          select: {
+              id: true,
+              fullName: true,
+              email: true,
+              phone: true,
+              title: true,
+              start: true,
+              end: true,
+              isVerified: true,
+              updatedAt: true,
+              // Explicitly exclude sensitive fields
+              verificationCode: false,
+              editToken: false,
+              tokenExpires: false
+          }
+      });
+      res.json(allEvents);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Server error' });
+      console.error(error);
+      res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -163,167 +183,260 @@ app.delete('/api/admin/events/:id', authMiddleware, async (req, res) => {
 });
 
 // -------------------- CUSTOMER EVENT FLOWS --------------------
-// Public: No auth middleware
+// Request event creation with OTP
 app.post('/api/events/request', async (req, res) => {
   try {
     const { fullName, email, phone, title, start, end } = req.body;
 
-    // Basic validations
-    if (!fullName || !email || !phone || !start || !end) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    // [MODIFIED] Enhanced validation
+    if (![fullName, email, phone, title, start, end].every(field => field?.trim())) {
+      return res.status(400).json({ error: 'All fields are required' });
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    // [MODIFIED] Sanitization
+    const sanitize = (str) => str.replace(/<[^>]*>?/gm, '');
+    const cleanTitle = sanitize(title);
+    
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
-    const phoneRegex = /^\+\d{1,3} [0-9]{7,15}$/;
-    if (!phoneRegex.test(phone)) {
-      return res.status(400).json({ error: 'Invalid phone number' });
+    // [MODIFIED] E.164 phone format validation
+    if (!/^\+\d{1,3} [0-9]{7,15}$/.test(phone)) {
+      return res.status(400).json({ error: 'Invalid phone format' });
     }
 
-    // OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    if (isNaN(eventStart.getTime()) || isNaN(eventEnd.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
 
-    // Create event as not verified
-    const newEvent = await prisma.event.create({
+    // [MODIFIED] Secure OTP generation
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const eventStart = new Date(start);
+    const eventEnd = new Date(end);
+
+    // [MODIFIED] Date validation
+    if (eventStart < new Date()) {
+      return res.status(400).json({ error: 'Event must be in the future' });
+    }
+    if ((eventEnd - eventStart) < 30*60000) {
+      return res.status(400).json({ error: 'Minimum 30 minute duration' });
+    }
+
+    const event = await prisma.event.create({
       data: {
-        fullName,
-        email,
+        fullName: sanitize(fullName),
+        email: email.toLowerCase().trim(),
         phone,
-        title,
-        start: new Date(start),
-        end: new Date(end),
-        isVerified: false,
+        title: cleanTitle,
+        start: eventStart,
+        end: eventEnd,
         verificationCode: otp,
-      },
+        isVerified: false
+      }
     });
 
-    // Send OTP email
     await sendVerificationEmail(email, otp);
+    res.json({ eventId: event.id, message: 'Verification code sent' });
 
-    res.json({
-      eventId: newEvent.id,
-      message: 'Event request created. OTP sent to email.',
-    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Event request error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+// Verify OTP and create edit token
 app.post('/api/events/verify', async (req, res) => {
   try {
     const { eventId, otp } = req.body;
+    
+    // [MODIFIED] Input validation
     if (!eventId || !otp) {
-      return res.status(400).json({ error: 'Missing eventId or otp' });
+      return res.status(400).json({ error: 'Invalid request' });
     }
 
     const event = await prisma.event.findUnique({
       where: { id: parseInt(eventId) },
+      select: { 
+        id: true, 
+        email: true, 
+        verificationCode: true, 
+        isVerified: true, 
+        start: true, 
+        title: true, 
+        end: true 
+      }
     });
-    if (!event) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-    if (event.isVerified) {
-      return res.status(400).json({ error: 'Event already verified' });
-    }
 
-    if (event.verificationCode !== otp) {
-      return res.status(400).json({ error: 'Invalid verification code' });
-    }
+    if (!event) return res.status(404).json({ error: 'Resource not found' });
+    if (event.isVerified) return res.status(400).json({ error: 'Already verified' });
+    if (event.verificationCode !== otp) return res.status(400).json({ error: 'Invalid code' });
 
-    // Mark event as verified
+    //const eventStart = new Date(event.start).getTime();
+    //const maxExpiry = eventStart - Date.now() - 86400000;
+    //const expiresInMs = Math.max(3600000, maxExpiry);
+    const expiresInMs = 3600000; // 1 hour in milliseconds
+    const expiresInSeconds = 3600;
+
+    // [MODIFIED] JWT expiration in seconds
+    const editToken = jwt.sign(
+      {
+        purpose: 'event-edit',  // [ADDED] Token purpose claim
+        eventId: event.id,
+        emailHash: crypto.createHash('sha256').update(event.email).digest('hex'),
+        titleHash: crypto.createHash('sha256').update(event.title).digest('hex'),
+        salt: crypto.randomBytes(16).toString('hex')
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: expiresInSeconds }  // Convert to seconds
+    );
+
     await prisma.event.update({
-      where: { id: event.id },
-      data: { isVerified: true, verificationCode: null },
-    });
-
-    // Send booking confirmation
-    await sendBookingConfirmation(event.email, event.title);
-
-    //send admin email
-    await sendAdminNotification(process.env.ADMIN_EMAIL, event.title, event.email);
-
-    res.json({ message: 'Event verified and confirmed' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// 1) Request OTP for editing/canceling
-app.post('/api/events/requestEditOrCancel', async (req, res) => {
-  try {
-    const { eventId, email } = req.body;
-
-    const event = await prisma.event.findUnique({ where: { id: parseInt(eventId) } });
-    if (!event) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    // Make sure the email matches the event's owner
-    if (event.email !== email) {
-      return res.status(403).json({ error: 'Email does not match event owner' });
-    }
-
-    // Generate a fresh OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // Store it back in the event (same field or a new "editCode" field)
-    await prisma.event.update({
-      where: { id: event.id },
-      data: { verificationCode: otp },
-    });
-
-    // Send this new OTP
-    await sendVerificationEmail(email, otp);
-
-    res.json({ message: 'OTP for edit/cancel sent to your email.' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// 2) Confirm edit/cancel with the OTP
-app.post('/api/events/confirmEditOrCancel', async (req, res) => {
-  try {
-    const { eventId, otp, newTitle, newStart, newEnd, cancel } = req.body;
-
-    const event = await prisma.event.findUnique({ where: { id: parseInt(eventId) } });
-    if (!event) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    // Check OTP
-    if (event.verificationCode !== otp) {
-      return res.status(400).json({ error: 'Invalid OTP' });
-    }
-
-    if (cancel) {
-      // Cancel (delete) event
-      await prisma.event.delete({ where: { id: event.id } });
-      return res.json({ message: 'Event cancelled.' });
-    }
-
-    // Otherwise, do an update
-    const updatedEvent = await prisma.event.update({
       where: { id: event.id },
       data: {
-        title: newTitle,
-        start: new Date(newStart),
-        end: new Date(newEnd),
-        // Clear OTP on success
+        isVerified: true,
         verificationCode: null,
-      },
+        editToken,
+        tokenExpires: new Date(Date.now() + expiresInMs)
+      }
     });
 
-    res.json({ message: 'Event updated.', updatedEvent });
+    await sendBookingConfirmation(event.email, event.title, editToken);
+    await sendAdminNotification(process.env.ADMIN_EMAIL, event.title, event.email);
+
+    res.json({ 
+      message: 'Verification successful',
+      token: editToken,
+      expiresIn: expiresInMs,
+      eventId: event.id
+    });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Verification error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Edit event (token required)
+app.put('/api/events/:id', verifyEditToken, async (req, res) => {
+  try {
+    const start = new Date(req.body.start);
+    const end = new Date(req.body.end);
+    
+    // [MODIFIED] Enhanced time validation
+    if (start >= end) {
+      return res.status(400).json({ error: 'Invalid time range' });
+    }
+    if (start < new Date()) {
+      return res.status(400).json({ error: 'Cannot reschedule to past' });
+    }
+
+    const updatedEvent = await prisma.event.update({
+      where: { id: req.eventId },
+      data: { 
+        title: sanitize(req.body.title),  // [ADDED] Sanitization
+        start, 
+        end 
+      }
+    });
+
+    await prisma.event.update({
+      where: { id: req.eventId },
+      data: { editToken: null }
+    });
+
+    await sendBookingUpdate(updatedEvent.email, updatedEvent.title);
+    res.json(updatedEvent);
+
+  } catch (error) {
+    console.error('Update error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete event (token required)
+app.delete('/api/events/:id', verifyEditToken, async (req, res) => {
+  try {
+    // [MODIFIED] Soft delete implementation
+    const event = await prisma.event.update({
+      where: { id: req.eventId },
+      data: { 
+        deletedAt: new Date(),  // [ADDED] Archival
+        editToken: null 
+      }
+    });
+
+    await sendBookingCancellation(event.email, event.title);
+    res.json({ message: 'Event cancelled' });
+
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Request new OTP for expired token
+app.post('/api/events/renew-access', async (req, res) => {
+  try {
+    const { eventId, email } = req.body;
+    
+    // [MODIFIED] Input validation
+    if (!eventId || !email) {
+      return res.status(400).json({ error: 'Invalid request' });
+    }
+
+    const event = await prisma.event.findUnique({
+      where: { id: parseInt(eventId) },
+      select: { email: true, isVerified: true }
+    });
+
+    // [MODIFIED] Generic error response
+    if (!event || event.email !== email.toLowerCase().trim()) {
+      return res.status(404).json({ error: 'Resource not found' });
+    }
+
+    // [ADDED] Prevent renewal for verified events
+    if (event.isVerified) {
+      return res.status(400).json({ error: 'Already verified' });
+    }
+
+    // [MODIFIED] Secure OTP generation
+    const otp = crypto.randomInt(100000, 999999).toString();
+    await prisma.event.update({
+      where: { id: parseInt(eventId) },
+      data: { verificationCode: otp }
+    });
+
+    await sendVerificationEmail(email, otp);
+    res.json({ message: 'New verification code sent' });
+
+  } catch (error) {
+    console.error('Renewal error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Validate token middleware (used by frontend)
+app.get('/api/events/validate-token', verifyEditToken, async (req, res) => {
+  try {
+    const event = await prisma.event.findUnique({
+      where: { id: req.eventId },
+      select: { 
+        id: true, 
+        title: true, 
+        start: true, 
+        end: true,
+        tokenExpires: true 
+      }
+    });
+    
+    res.json({ 
+      valid: true, 
+      event,
+      expiresAt: event.tokenExpires  // [ADDED] Client-side expiration
+    });
+  } catch (error) {
+    res.status(401).json({ valid: false, error: 'Invalid session' });
   }
 });
 

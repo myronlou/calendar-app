@@ -31,5 +31,8 @@ model Event {
   isVerified         Boolean  @default(false)
   verificationCode   String?  // OTP for verifying the event
   verificationExpiresAt DateTime? // OTP expiration time
+  editToken          String?  @unique
+  tokenExpires       DateTime?
   updatedAt          DateTime @updatedAt  // Auto-updates whenever modified
+  salt               String?  @unique
 }

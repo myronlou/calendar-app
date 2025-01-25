@@ -32,14 +32,34 @@ const sendVerificationEmail = async (toEmail, otpCode) => {
     await transporter.sendMail(mailOptions);
 };
 
-const sendBookingConfirmation = async (toEmail, eventTitle) => {
+const sendBookingConfirmation = async (toEmail, eventTitle, editToken) => {
+    const editLink = `${process.env.FRONTEND_URL}/calendar?token=${editToken}`;
+    
+    const message = `
+        <p>Your event <strong>${eventTitle}</strong> has been confirmed!</p>
+        <div style="margin: 25px 0;">
+            <a href="${editLink}" 
+               style="background-color: #FFC72C; color: #000; 
+                      padding: 12px 25px; text-decoration: none; 
+                      border-radius: 5px; font-weight: bold;
+                      display: inline-block;">
+                Edit Booking
+            </a>
+        </div>
+        <p style="font-size: 0.9em; color: #666;">
+            Can't see the button? Use this link:<br>
+            ${editLink}
+        </p>
+    `;
+
     const mailOptions = {
         from: `"Rideawave" <noreply@keketec.com>`,
         to: toEmail,
         subject: `Your Event "${eventTitle}" is Confirmed!`,
-        text: `Your event "${eventTitle}" has been successfully scheduled.`,
-        html: emailTemplate("Event Confirmation", `Your event <strong>${eventTitle}</strong> has been successfully scheduled! Please mark it in your calendar.`)
+        text: `Your event "${eventTitle}" has been confirmed. Edit link: ${editLink}`,
+        html: emailTemplate("Event Confirmation", message)
     };
+    
     await transporter.sendMail(mailOptions);
 };
 

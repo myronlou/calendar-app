@@ -16,8 +16,18 @@ const { sendVerificationEmail, sendBookingConfirmation, sendBookingUpdate, sendB
 const app = express();
 const prisma = new PrismaClient();
 
-app.use(cors());
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token'],
+  credentials: true
+};
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
+app.use(helmet());
+app.use(hpp());
+
 
 // Ensure only one admin exists at startup
 async function initializeAdmin() {
@@ -37,6 +47,26 @@ async function initializeAdmin() {
 initializeAdmin().catch(console.error);
 
 // -------------------- ADMIN-ONLY CALENDAR ROUTES --------------------
+// -------------------- ADMIN ENDPOINTS --------------------
+const deleteUnverifiedEvents = async () => {
+  try {
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const result = await prisma.event.deleteMany({
+      where: {
+        isVerified: false,
+        createdAt: { lt: tenMinutesAgo }
+      }
+    });
+    console.log(`Cleaned up ${result.count} unverified events`);
+  } catch (error) {
+    console.error('Cleanup error:', error);
+  }
+};
+
+// Run cleanup every minute
+setInterval(deleteUnverifiedEvents, 60 * 1000);
+
+// Admin login
 app.post('/auth/admin/login', async (req, res) => {
     const { email, password } = req.body;
     try {
@@ -50,9 +80,10 @@ app.post('/auth/admin/login', async (req, res) => {
             return res.status(400).json({ error: 'Invalid credentials' });
         }
 
-        const token = jwt.sign({ userId: admin.id, role: admin.role }, process.env.JWT_SECRET, {
-            expiresIn: '1d'
-        });
+        const token = jwt.sign({ 
+            userId: admin.id, 
+            role: admin.role 
+        }, process.env.JWT_SECRET, { expiresIn: '1d' });
 
         res.json({ token });
     } catch (error) {
@@ -61,10 +92,14 @@ app.post('/auth/admin/login', async (req, res) => {
     }
 });
 
-// 1) GET all events (admin)
+// 1) GET only verified events
 app.get('/api/admin/events', authMiddleware, async (req, res) => {
   try {
-      const allEvents = await prisma.event.findMany({
+      const verifiedEvents = await prisma.event.findMany({
+          where: { 
+              isVerified: true,
+              deletedAt: null
+          },
           orderBy: { start: 'asc' },
           select: {
               id: true,
@@ -75,38 +110,34 @@ app.get('/api/admin/events', authMiddleware, async (req, res) => {
               start: true,
               end: true,
               isVerified: true,
-              updatedAt: true,
-              // Explicitly exclude sensitive fields
-              verificationCode: false,
-              editToken: false,
-              tokenExpires: false
+              createdAt: true,
+              updatedAt: true
           }
       });
-      res.json(allEvents);
+      res.json(verifiedEvents);
   } catch (error) {
       console.error(error);
       res.status(500).json({ error: 'Server error' });
   }
 });
 
-// 2) Create new event (admin) without OTP
+// 2) Create new event (admin)
 app.post('/api/admin/events', authMiddleware, async (req, res) => {
   try {
     const { fullName, email, phone, title, start, end } = req.body;
 
-    // Validate fields, phone, email, etc. if desired
+    // Validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
         return res.status(400).json({ error: 'Invalid email format' });
     }
 
-    // Validate Phone Number (Basic)
     const phoneRegex = /^\+\d{1,3} [0-9]{7,15}$/;
     if (!phoneRegex.test(phone)) {
         return res.status(400).json({ error: 'Invalid phone number' });
     }
 
-    // Admin-created => skip OTP, mark isVerified: true
+    // Admin-created event
     const newEvent = await prisma.event.create({
       data: {
         fullName,
@@ -120,9 +151,7 @@ app.post('/api/admin/events', authMiddleware, async (req, res) => {
       },
     });
 
-    // Immediately send booking confirmation
     await sendBookingConfirmation(email, title);
-
     res.json({
       eventId: newEvent.id,
       message: 'Event created and confirmed by admin.',
@@ -139,6 +168,11 @@ app.put('/api/admin/events/:id', authMiddleware, async (req, res) => {
     const id = parseInt(req.params.id);
     const { title, start, end, fullName, email, phone } = req.body;
 
+    // Basic validation
+    if (!title || !start || !end) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
     const updatedEvent = await prisma.event.update({
       where: { id },
       data: {
@@ -151,9 +185,7 @@ app.put('/api/admin/events/:id', authMiddleware, async (req, res) => {
       },
     });
 
-    // Optionally send an update email
     await sendBookingUpdate(updatedEvent.email, updatedEvent.title);
-
     res.json(updatedEvent);
   } catch (error) {
     console.error(error);
@@ -161,21 +193,25 @@ app.put('/api/admin/events/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// 4) Delete event (admin)
+// 4) Delete event (admin - soft delete)
 app.delete('/api/admin/events/:id', authMiddleware, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
 
-    const eventToDelete = await prisma.event.findUnique({ where: { id } });
-    if (!eventToDelete) {
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event) {
       return res.status(404).json({ error: 'Event not found' });
     }
 
-    await prisma.event.delete({ where: { id } });
+    // Soft delete
+    await prisma.event.update({
+      where: { id },
+      data: { deletedAt: new Date() }
+    });
 
-    await sendBookingCancellation(eventToDelete.email, eventToDelete.title);
+    await sendBookingCancellation(event.email, event.title);
+    res.json({ message: 'Event archived successfully' });
 
-    res.json({ message: 'Event deleted' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
@@ -188,9 +224,23 @@ app.post('/api/events/request', async (req, res) => {
   try {
     const { fullName, email, phone, title, start, end } = req.body;
 
+    const eventStart = new Date(start);
+    const eventEnd = new Date(end);
+
     // [MODIFIED] Enhanced validation
     if (![fullName, email, phone, title, start, end].every(field => field?.trim())) {
       return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    if (isNaN(eventStart.getTime()) || isNaN(eventEnd.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    if (eventStart < new Date()) {
+      return res.status(400).json({ error: 'Event must be in the future' });
+    }
+    if ((eventEnd - eventStart) < 30*60000) {
+      return res.status(400).json({ error: 'Minimum 30 minute duration' });
     }
 
     // [MODIFIED] Sanitization
@@ -205,23 +255,8 @@ app.post('/api/events/request', async (req, res) => {
     if (!/^\+\d{1,3} [0-9]{7,15}$/.test(phone)) {
       return res.status(400).json({ error: 'Invalid phone format' });
     }
-
-    if (isNaN(eventStart.getTime()) || isNaN(eventEnd.getTime())) {
-      return res.status(400).json({ error: 'Invalid date format' });
-    }
-
     // [MODIFIED] Secure OTP generation
     const otp = crypto.randomInt(100000, 999999).toString();
-    const eventStart = new Date(start);
-    const eventEnd = new Date(end);
-
-    // [MODIFIED] Date validation
-    if (eventStart < new Date()) {
-      return res.status(400).json({ error: 'Event must be in the future' });
-    }
-    if ((eventEnd - eventStart) < 30*60000) {
-      return res.status(400).json({ error: 'Minimum 30 minute duration' });
-    }
 
     const event = await prisma.event.create({
       data: {
@@ -250,70 +285,97 @@ app.post('/api/events/verify', async (req, res) => {
   try {
     const { eventId, otp } = req.body;
     
-    // [MODIFIED] Input validation
-    if (!eventId || !otp) {
-      return res.status(400).json({ error: 'Invalid request' });
-    }
+    // Input validation
+    if (!eventId || !otp) return res.status(400).json({ error: 'Invalid request' });
 
     const event = await prisma.event.findUnique({
       where: { id: parseInt(eventId) },
       select: { 
-        id: true, 
-        email: true, 
-        verificationCode: true, 
-        isVerified: true, 
-        start: true, 
-        title: true, 
-        end: true 
+        id: true, email: true, verificationCode: true, 
+        isVerified: true, title: true, start: true 
       }
     });
 
-    if (!event) return res.status(404).json({ error: 'Resource not found' });
-    if (event.isVerified) return res.status(400).json({ error: 'Already verified' });
-    if (event.verificationCode !== otp) return res.status(400).json({ error: 'Invalid code' });
+    // Validate event and OTP
+    if (!event || event.isVerified || event.verificationCode !== otp) {
+      return res.status(401).json({ error: 'Invalid verification' });
+    }
 
-    //const eventStart = new Date(event.start).getTime();
-    //const maxExpiry = eventStart - Date.now() - 86400000;
-    //const expiresInMs = Math.max(3600000, maxExpiry);
-    const expiresInMs = 3600000; // 1 hour in milliseconds
-    const expiresInSeconds = 3600;
+    // Generate secure edit token
+    const salt = crypto.randomBytes(16).toString('hex');
+    const expiresInMs = 3600000; // 1 hour
 
-    // [MODIFIED] JWT expiration in seconds
     const editToken = jwt.sign(
       {
-        purpose: 'event-edit',  // [ADDED] Token purpose claim
+        purpose: 'event-edit',
         eventId: event.id,
-        emailHash: crypto.createHash('sha256').update(event.email).digest('hex'),
+        emailHash: crypto.createHash('sha256').update(event.email.toLowerCase()).digest('hex'), // Lowercase consistency
         titleHash: crypto.createHash('sha256').update(event.title).digest('hex'),
-        salt: crypto.randomBytes(16).toString('hex')
+        salt // Include salt in JWT
       },
       process.env.JWT_SECRET,
-      { expiresIn: expiresInSeconds }  // Convert to seconds
+      { expiresIn: '1h' }
     );
 
+    // Update database with token details
     await prisma.event.update({
       where: { id: event.id },
       data: {
         isVerified: true,
         verificationCode: null,
-        editToken,
-        tokenExpires: new Date(Date.now() + expiresInMs)
+        editToken, // Correct field name
+        tokenExpires: new Date(Date.now() + expiresInMs),
+        salt // Store salt
       }
     });
 
-    await sendBookingConfirmation(event.email, event.title, editToken);
-    await sendAdminNotification(process.env.ADMIN_EMAIL, event.title, event.email);
-
+    // Send confirmation (ensure email uses lowercase)
+    await sendBookingConfirmation(event.email.toLowerCase(), event.title, editToken);
+    
     res.json({ 
-      message: 'Verification successful',
-      token: editToken,
-      expiresIn: expiresInMs,
-      eventId: event.id
+      message: 'Verified successfully',
+      token: editToken // Return token explicitly
     });
 
   } catch (error) {
     console.error('Verification error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get all events for a user
+app.get('/api/events/user-events', verifyEditToken, async (req, res) => {
+  try {
+    // Get user email from the validated token
+    const event = await prisma.event.findUnique({
+      where: { id: req.eventId },
+      select: { email: true }
+    });
+
+    if (!event) {
+      return res.status(404).json([]);
+    }
+
+    // Find all events for this email
+    const userEvents = await prisma.event.findMany({
+      where: {
+        email: event.email,
+        deletedAt: null,
+        tokenExpires: { gt: new Date() }
+      },
+      select: {
+        id: true,
+        title: true,
+        start: true,
+        end: true,
+        isVerified: true
+      },
+      orderBy: { start: 'asc' }
+    });
+
+    res.json(userEvents);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -338,11 +400,6 @@ app.put('/api/events/:id', verifyEditToken, async (req, res) => {
         start, 
         end 
       }
-    });
-
-    await prisma.event.update({
-      where: { id: req.eventId },
-      data: { editToken: null }
     });
 
     await sendBookingUpdate(updatedEvent.email, updatedEvent.title);
@@ -416,27 +473,80 @@ app.post('/api/events/renew-access', async (req, res) => {
   }
 });
 
+// Add to your customer backend routes
+app.get('/api/events/:id', async (req, res) => {
+  try {
+    const event = await prisma.event.findUnique({
+      where: { id: parseInt(req.params.id) },
+      select: {
+        id: true,
+        title: true,
+        start: true,
+        end: true,
+        isVerified: true,
+        tokenExpires: true
+      }
+    });
+
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    res.json(event);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Validate token middleware (used by frontend)
+app.options('/api/events/validate-token', cors(corsOptions)); // Preflight handler
+// Update your existing validate-token endpoint
 app.get('/api/events/validate-token', verifyEditToken, async (req, res) => {
   try {
     const event = await prisma.event.findUnique({
       where: { id: req.eventId },
       select: { 
         id: true, 
-        title: true, 
-        start: true, 
-        end: true,
-        tokenExpires: true 
+        tokenExpires: true,
+        email: true,
       }
     });
     
+    if (!event || new Date() > new Date(event.tokenExpires)) {
+      return res.status(401).json({ valid: false });
+    }
+
     res.json({ 
       valid: true, 
-      event,
-      expiresAt: event.tokenExpires  // [ADDED] Client-side expiration
+      event: {
+        id: event.id,
+        email: event.email
+      },
+      expiresAt: event.tokenExpires
     });
   } catch (error) {
-    res.status(401).json({ valid: false, error: 'Invalid session' });
+    res.status(401).json({ valid: false });
+  }
+});
+
+app.get('/api/events/user', verifyEditToken, async (req, res) => {
+  try {
+    const events = await prisma.event.findMany({
+      where: {
+        email: req.event.email,
+        deletedAt: null
+      },
+      select: {
+        id: true,
+        title: true,
+        start: true,
+        end: true,
+        isVerified: true
+      }
+    });
+    res.json(events);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

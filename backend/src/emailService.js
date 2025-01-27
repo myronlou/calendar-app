@@ -33,22 +33,23 @@ const sendVerificationEmail = async (toEmail, otpCode) => {
 };
 
 const sendBookingConfirmation = async (toEmail, eventTitle, editToken) => {
-    const editLink = `${process.env.FRONTEND_URL}/calendar?token=${editToken}`;
+    const encodedToken = encodeURIComponent(editToken);
+    const calendarLink = `${process.env.FRONTEND_URL}/token?token=${encodedToken}`;
     
     const message = `
         <p>Your event <strong>${eventTitle}</strong> has been confirmed!</p>
         <div style="margin: 25px 0;">
-            <a href="${editLink}" 
+            <a href="${calendarLink}" 
                style="background-color: #FFC72C; color: #000; 
                       padding: 12px 25px; text-decoration: none; 
                       border-radius: 5px; font-weight: bold;
                       display: inline-block;">
-                Edit Booking
+                View All Bookings
             </a>
         </div>
         <p style="font-size: 0.9em; color: #666;">
-            Can't see the button? Use this link:<br>
-            ${editLink}
+            Manage all your bookings:<br>
+            ${calendarLink}
         </p>
     `;
 
@@ -56,7 +57,7 @@ const sendBookingConfirmation = async (toEmail, eventTitle, editToken) => {
         from: `"Rideawave" <noreply@keketec.com>`,
         to: toEmail,
         subject: `Your Event "${eventTitle}" is Confirmed!`,
-        text: `Your event "${eventTitle}" has been confirmed. Edit link: ${editLink}`,
+        text: `Your event "${eventTitle}" has been confirmed. Edit link: ${calendarLink}`,
         html: emailTemplate("Event Confirmation", message)
     };
     

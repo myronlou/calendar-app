@@ -1,118 +1,114 @@
-// client/src/RegisterPage.js
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 function RegisterPage() {
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [emailError, setEmailError] = useState('');
-  const [passwordError, setPasswordError] = useState('');
+  const [otp, setOtp] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Email regex validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-  const handleEmailChange = (e) => {
-    const inputEmail = e.target.value;
-    setEmail(inputEmail);
-
-    if (inputEmail && !emailRegex.test(inputEmail)) {
-      setEmailError("Invalid email format");
-    } else {
-      setEmailError("");
-    }
-  };
-
-  const handlePasswordChange = (e) => {
-    setPassword(e.target.value);
-  };
-
-  const handleConfirmPasswordChange = (e) => {
-    setConfirmPassword(e.target.value);
-    
-    if (e.target.value !== password) {
-      setPasswordError("Passwords do not match");
-    } else {
-      setPasswordError("");
-    }
-  };
+  // Pre-fill and lock email from query params
+  useEffect(() => {
+    const urlEmail = searchParams.get('email');
+    if (urlEmail) setEmail(decodeURIComponent(urlEmail));
+  }, [searchParams]);
 
   const handleRegister = async (e) => {
     e.preventDefault();
     setErrorMsg('');
 
-    if (!emailRegex.test(email)) {
-      setEmailError("Invalid email format");
-      return;
-    }
-
     if (password !== confirmPassword) {
-      setPasswordError("Passwords do not match");
+      setErrorMsg('Passwords do not match');
       return;
     }
 
     try {
-      const res = await fetch('http://localhost:5000/auth/register', {
+      const response = await fetch('http://localhost:5001/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firstName, lastName, email, password })
+        body: JSON.stringify({
+          email,
+          password,
+          otp
+        })
       });
-      const data = await res.json();
 
-      if (res.ok) {
-        navigate(`/auth/verify?email=${encodeURIComponent(email)}`);
+      const data = await response.json();
+      
+      if (response.ok) {
+        localStorage.setItem('token', data.token);
+        navigate('/calendar'); // Redirect to management page
       } else {
         setErrorMsg(data.error || 'Registration failed');
       }
     } catch (error) {
-      console.error(error);
       setErrorMsg('Network or server error');
     }
   };
 
   return (
     <div style={{ maxWidth: '400px', margin: '0 auto' }}>
-      <h2>Register</h2>
-      {errorMsg && <div style={{ color: 'red', marginBottom: '1rem' }}>{errorMsg}</div>}
-      
+      <h2>Complete Registration</h2>
+      <p className="registration-notice">
+        You're registering with the email used for your booking.
+        Check your email for the verification code.
+      </p>
+
+      {errorMsg && <div className="error-message">{errorMsg}</div>}
+
       <form onSubmit={handleRegister}>
-        <div>
-          <label>First Name: </label>
-          <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} required />
+        <div className="form-group">
+          <label>Email:</label>
+          <input
+            type="email"
+            value={email}
+            readOnly
+          />
         </div>
 
-        <div>
-          <label>Last Name: </label>
-          <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} required />
+        <div className="form-group">
+          <label>Verification Code:</label>
+          <input
+            type="text"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value)}
+            placeholder="Enter OTP from email"
+            required
+          />
         </div>
 
-        <div>
-          <label>Email: </label>
-          <input type="email" value={email} onChange={handleEmailChange} required style={{ borderColor: emailError ? 'red' : '' }} />
-          {emailError && <p style={{ color: 'red' }}>{emailError}</p>}
+        <div className="form-group">
+          <label>Password:</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
         </div>
 
-        <div>
-          <label>Password: </label>
-          <input type="password" value={password} onChange={handlePasswordChange} required />
+        <div className="form-group">
+          <label>Confirm Password:</label>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+          />
         </div>
 
-        <div>
-          <label>Confirm Password: </label>
-          <input type="password" value={confirmPassword} onChange={handleConfirmPasswordChange} required style={{ borderColor: passwordError ? 'red' : '' }} />
-          {passwordError && <p style={{ color: 'red' }}>{passwordError}</p>}
-        </div>
-
-        <button type="submit" disabled={emailError || passwordError}>Register</button>
+        <button type="submit" className="primary-button">
+          Complete Registration
+        </button>
       </form>
 
-      <div style={{ marginTop: '1rem' }}>
-        <small>Already have an account? <Link to="/auth/login">Login here</Link></small>
-      </div>
+      <p className="auth-redirect">
+        Already have an account?{' '}
+        <a href={`/auth/login?email=${encodeURIComponent(email)}`}>Login here</a>
+      </p>
     </div>
   );
 }

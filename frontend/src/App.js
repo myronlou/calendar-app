@@ -27,12 +27,23 @@ const TokenValidator = () => {
   const token = searchParams.get('token');
 
   useEffect(() => {
-    if (token) {
-      localStorage.setItem('eventToken', token);
-      navigate('/calendar', { replace: true });
-    } else {
-      navigate('/', { replace: true });
-    }
+    const checkEmail = async () => {
+      try {
+        const res = await fetch(`/api/events/check-email?token=${token}`);
+        const { hasAccount, email } = await res.json();
+        
+        if (hasAccount) {
+          navigate(`/auth/login?email=${encodeURIComponent(email)}`);
+        } else {
+          navigate(`/auth/register?email=${encodeURIComponent(email)}`);
+        }
+      } catch (error) {
+        navigate('/');
+      }
+    };
+  
+    if (token) checkEmail();
+    else navigate('/');
   }, [token, navigate]);
 
   return <div>Redirecting to your bookings...</div>;
@@ -41,19 +52,24 @@ const TokenValidator = () => {
 function App() {
   useEffect(() => {
     const validateToken = async () => {
-      const token = localStorage.getItem('eventToken');
+      const token = localStorage.getItem('token');
       if (!token) return;
-
+  
       try {
-        const res = await fetch(`/api/events/validate-token?token=${token}`);
-        if (!res.ok) localStorage.removeItem('eventToken');
+        const res = await fetch('/api/events/validate-token', {
+          method: 'GET',
+          headers: { 
+            'Authorization': `Bearer ${token}` 
+          }
+        });
+        if (!res.ok) localStorage.removeItem('token');
       } catch (error) {
-        localStorage.removeItem('eventToken');
+        localStorage.removeItem('token');
       }
     };
-
+  
     validateToken();
-    const interval = setInterval(validateToken, 5 * 60 * 1000); // Validate every 5 minutes
+    const interval = setInterval(validateToken, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 

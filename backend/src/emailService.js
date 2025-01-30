@@ -11,6 +11,7 @@ const transporter = nodemailer.createTransport({
     },
 });
 
+
 const emailTemplate = (title, message) => {
     return `<div style='background-color: #ffffff; color: #000000; padding: 20px; font-family: Helvetica, Arial, sans-serif; text-align: center;'>
                 <div style='max-width: 500px; margin: auto; background: #ffffff; padding: 30px; border-radius: 8px; border: 2px solid #FFC72C;'>
@@ -21,19 +22,36 @@ const emailTemplate = (title, message) => {
             </div>`;
 };
 
-const sendVerificationEmail = async (toEmail, otpCode) => {
-    const mailOptions = {
-        from: `"Verify Bot" <noreply@keketec.com>`,
-        to: toEmail,
-        subject: `Your Code is ${otpCode}`,
-        text: `Your OTP: ${otpCode} (expires in 10 minutes)`,
-        html: emailTemplate("To verify your email address, please use the following One Time Password (OTP):", `<div style='font-size: 24px; font-weight: bold; background: #FFC72C; padding: 15px; border-radius: 5px; display: inline-block; color: #000000;'>${otpCode}</div>`)
+const sendOtpEmail = (email, code, type) => {
+    const actionMap = {
+      auth: 'access your account',
+      booking: 'confirm your booking'
     };
-    await transporter.sendMail(mailOptions);
-};
 
-const sendBookingConfirmation = async (toEmail, eventTitle, editToken) => {
-    const encodedToken = encodeURIComponent(editToken);
+    return transporter.sendMail({
+        from: `"Secure System" <noreply@keketec.com>`,
+        to: email,
+        subject: `Your Verification Code: ${code}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #1a1a1a;">Verification Required</h2>
+            <p style="font-size: 16px; color: #333;">
+              Use this code to ${actionMap[type]}:
+            </p>
+            <div style="background: #f5f5f5; padding: 20px; border-radius: 5px; margin: 20px 0;">
+              <code style="font-size: 24px; letter-spacing: 3px;">${code}</code>
+            </div>
+            <p style="font-size: 14px; color: #666;">
+              This code will expire in 10 minutes<br>
+              If you didn't request this, please ignore this email.
+            </p>
+          </div>
+        `
+      });
+    };
+
+const sendBookingConfirmation = async (toEmail, eventTitle, managementToken) => {
+    const encodedToken = encodeURIComponent(managementToken);
     const calendarLink = `${process.env.FRONTEND_URL}/token?token=${encodedToken}`;
     
     const message = `
@@ -114,4 +132,4 @@ const sendAdminNotification = async (adminEmail, eventTitle, customerEmail) => {
     await transporter.sendMail(mailOptions);
 };
 
-module.exports = { sendVerificationEmail, sendBookingConfirmation, sendBookingUpdate, sendBookingCancellation, sendEventReminder, sendAdminNotification };
+module.exports = { sendOtpEmail, sendBookingConfirmation, sendBookingUpdate, sendBookingCancellation, sendEventReminder, sendAdminNotification };

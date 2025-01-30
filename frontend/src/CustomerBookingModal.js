@@ -16,15 +16,38 @@ function CustomerBookingModal({ isOpen, onClose }) {
     date: '',
     time: '',
   });
-  const [eventId, setEventId] = useState(null);
   const [otp, setOtp] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [animationDirection, setAnimationDirection] = useState('next');
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     setEmailError(emailRegex.test(email) ? '' : 'Invalid email format');
+  };
+
+  const handleRegenerateOtp = async () => {
+    setIsRegenerating(true);
+    setErrorMessage('');
+    
+    try {
+      const response = await fetch('http://localhost:5001/api/otp/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          type: 'booking'
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to send new code');
+      setErrorMessage('New verification code sent successfully');
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setIsRegenerating(false);
+    }
   };
 
   const handleClose = () => {
@@ -39,7 +62,6 @@ function CustomerBookingModal({ isOpen, onClose }) {
       date: '',
       time: '',
     });
-    setEventId(null);
     setOtp('');
     setBookingSuccess(false);
     setErrorMessage('');
@@ -77,23 +99,21 @@ function CustomerBookingModal({ isOpen, onClose }) {
           setErrorMessage('Please select both date and time');
           return;
         }
-        
-        const startISO = new Date(`${formData.date}T${formData.time}:00`).toISOString();
-        const endISO = new Date(new Date(startISO).getTime() + 3600000).toISOString();
 
-        const response = await fetch('http://localhost:5001/api/events/request', {
+        // Generate booking OTP
+        const otpResponse = await fetch('http://localhost:5001/api/otp/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            ...formData,
-            start: startISO,
-            end: endISO,
+            email: formData.email,
+            type: 'booking'
           }),
         });
 
-        if (!response.ok) throw new Error(await response.text());
-        const { eventId } = await response.json();
-        setEventId(eventId);
+        if (!otpResponse.ok) {
+          throw new Error('Failed to send verification code');
+        }
+
         setCurrentStep(3);
       } else if (currentStep === 3) {
         if (!otp) {
@@ -101,13 +121,44 @@ function CustomerBookingModal({ isOpen, onClose }) {
           return;
         }
 
-        const response = await fetch('http://localhost:5001/api/events/verify', {
+        // Verify booking OTP
+        const verifyResponse = await fetch('http://localhost:5001/api/otp/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ eventId, otp }),
+          body: JSON.stringify({
+            email: formData.email,
+            code: otp,
+            type: 'booking'
+          }),
         });
 
-        if (!response.ok) throw new Error(await response.text());
+        if (!verifyResponse.ok) {
+          throw new Error('Invalid or expired verification code');
+        }
+
+        const { token } = await verifyResponse.json();
+
+        // Create event after successful OTP verification
+        const startISO = new Date(`${formData.date}T${formData.time}:00`).toISOString();
+        const endISO = new Date(new Date(startISO).getTime() + 3600000).toISOString();
+
+        const eventResponse = await fetch('http://localhost:5001/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventData: {
+              ...formData,
+              start: startISO,
+              end: endISO,
+            },
+            token: token
+          }),
+        });
+
+        if (!eventResponse.ok) {
+          throw new Error(await eventResponse.text());
+        }
+
         setBookingSuccess(true);
         setCurrentStep(4);
       }
@@ -135,25 +186,15 @@ function CustomerBookingModal({ isOpen, onClose }) {
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        {/* Add close button */}
-        <button 
-          onClick={handleClose}
-          className="close-button">
-            ×
-        </button>
+        <button onClick={handleClose} className="close-button">×</button>
 
-        <form 
-          onSubmit={(e) => e.preventDefault()}
-          onKeyDown={handleKeyPress}
-        ></form>
+        <form onSubmit={(e) => e.preventDefault()} onKeyDown={handleKeyPress}></form>
 
         <h2 className="modal-title" style={{ color: '#000' }}>
           Book Your Appointment
         </h2>
 
-        {errorMessage && (
-          <p className="error-message">{errorMessage}</p>
-        )}
+        {errorMessage && <p className="error-message">{errorMessage}</p>}
 
         <div className={`animation-container ${animationDirection}`}>
           {currentStep === 1 && (
@@ -210,7 +251,7 @@ function CustomerBookingModal({ isOpen, onClose }) {
                   value={formData.title}
                   required
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="e.g. Consultation, Understanding yourself"
+                  placeholder="e.g. Consultation"
                   onKeyDown={handleKeyPress}
                 />
               </div>
@@ -240,10 +281,7 @@ function CustomerBookingModal({ isOpen, onClose }) {
                   onKeyDown={handleKeyPress}
                 />
               </div>
-
-              <p className="duration-note">
-                * Appointments are scheduled for 1 hour duration
-              </p>
+              <p className="duration-note">* Appointments are scheduled for 1 hour duration</p>
             </div>
           )}
 
@@ -251,6 +289,18 @@ function CustomerBookingModal({ isOpen, onClose }) {
             <div className="step-content">
               <p className="otp-instruction">
                 Verification code sent to <strong>{formData.email}</strong>
+                <button 
+                  type="button" 
+                  onClick={handleRegenerateOtp}
+                  disabled={isRegenerating}
+                  className="regenerate-button"
+                >
+                  {isRegenerating ? (
+                    <img src={loadingGif} alt="Sending..." className="loading-icon" />
+                  ) : (
+                    'Resend Code'
+                  )}
+                </button>
               </p>
               <input
                 type="text"
@@ -266,9 +316,7 @@ function CustomerBookingModal({ isOpen, onClose }) {
 
           {currentStep === 4 && (
             <div className="step-content success-content">
-              <h3 className="success-message">
-                ✓ Appointment Confirmed!
-              </h3>
+              <h3 className="success-message">✓ Appointment Confirmed!</h3>
               <p className="success-text">Thank you for your booking!</p>
             </div>
           )}

@@ -14,29 +14,57 @@ datasource db {
 }
 
 model User {
-  id       Int      @id @default(autoincrement())
-  email    String   @unique
-  password String
-  role     String   @default("admin") // Only one admin
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  role      String   @default("customer")
+  verified  Boolean  @default(false)
+  events    Event[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastOtpVerifiedAt DateTime?
 }
 
 model Event {
-  id                 Int      @id @default(autoincrement())
-  fullName           String
-  email              String
-  phone              String
-  title              String
-  start              DateTime
-  end                DateTime
-  isVerified         Boolean  @default(false)
-  verificationCode   String?  // OTP for verifying the event
-  verificationExpiresAt DateTime? // OTP expiration time
-  editToken          String?  @unique
-  tokenExpires       DateTime?
-  updatedAt          DateTime @updatedAt  // Auto-updates whenever modified
-  salt               String?  @unique
-  createdAt          DateTime @default(now())
-  deletedAt        DateTime? @map("deleted_at")
+  id        Int      @id @default(autoincrement())
+  title     String
+  start     DateTime
+  end       DateTime
+  fullName  String
+  email     String
+  phone     String   @db.VarChar(20)
+  userId    Int?     
+  user      User?    @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@index([isVerified, createdAt, email])
+  // Add index for better query performance
+  @@index([email])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model OTP {
+  id        Int      @id @default(autoincrement())
+  code      String
+  email     String
+  type      String   // 'auth' | 'booking'
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  
+  @@index([email, type])
+  @@unique([email, type])
+}
+
+model BookingType {
+  id       Int    @id @default(autoincrement())
+  name     String
+  duration Int
+}
+
+model Availability {
+  day     String @id
+  start   String
+  end     String
+  enabled Boolean @default(true)
 }

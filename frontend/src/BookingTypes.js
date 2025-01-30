@@ -1,19 +1,57 @@
-// BookingTypes.js
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-export default function BookingTypes() {
+function BookingTypes() {
   const [bookingTypes, setBookingTypes] = useState([]);
   const [newType, setNewType] = useState({ name: '', duration: 30 });
 
-  const handleAddType = () => {
-    setBookingTypes(prev => [...prev, newType]);
-    setNewType({ name: '', duration: 30 });
+  useEffect(() => {
+    const fetchTypes = async () => {
+      try {
+        const res = await fetch('http://localhost:5001/api/admin/booking-types', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        if (!res.ok) throw new Error('Failed to fetch booking types');
+        
+        const data = await res.json();
+        setBookingTypes(data);
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    };
+    
+    fetchTypes();
+  }, []);
+
+  const handleAddType = async () => {
+    if (!newType.name.trim()) return;
+
+    try {
+      const res = await fetch('http://localhost:5001/api/admin/booking-types', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(newType)
+      });
+
+      if (!res.ok) throw new Error('Failed to create booking type');
+      
+      const createdType = await res.json();
+      setBookingTypes(prev => [...prev, createdType]);
+      setNewType({ name: '', duration: 30 });
+    } catch (error) {
+      console.error('Error creating type:', error);
+    }
   };
 
   return (
-    <div>
-      <h2>Booking Types</h2>
-      <div style={{ marginBottom: '20px' }}>
+    <div className="booking-types-admin">
+      <h2>Manage Booking Types</h2>
+      <div className="type-creator">
         <input
           type="text"
           placeholder="Type name"
@@ -28,16 +66,20 @@ export default function BookingTypes() {
           <option value={30}>30 minutes</option>
           <option value={60}>60 minutes</option>
         </select>
-        <button onClick={handleAddType}>Add Type</button>
+        <button onClick={handleAddType}>Add Booking Type</button>
       </div>
-      
-      <div>
-        {bookingTypes.map((type, index) => (
-          <div key={index} style={{ margin: '10px 0' }}>
-            {type.name} ({type.duration} mins)
+
+      <div className="types-list">
+        <h3>Available Booking Types</h3>
+        {bookingTypes.map(type => (
+          <div key={type.id} className="type-item">
+            <span className="type-name">{type.name}</span>
+            <span className="type-duration">{type.duration} minutes</span>
           </div>
         ))}
       </div>
     </div>
   );
 }
+
+export default BookingTypes;

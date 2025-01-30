@@ -12,50 +12,29 @@ function PublicCalendar() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const token = localStorage.getItem('eventToken');
+      const token = localStorage.getItem('token'); // Changed from 'eventToken'
       if (!token) return navigate('/');
   
       try {
-        // Validate token via headers only
-        const validationRes = await fetch(
-          `http://localhost:5001/api/events/validate-token`, // No query param
-          {
-            method: 'GET',
-            headers: { 'Authorization': `Bearer ${token}` }, // Token in header
-            credentials: 'include'
-          }
-        );
-  
-        if (!validationRes.ok) throw new Error('Invalid token');
-        
-        // Fetch user events
-        const eventsRes = await fetch(`http://localhost:5001/api/events/user`, {
-          method: 'GET',
-          headers: { 'Authorization': `Bearer ${token}` }, // Token in header
-          credentials: 'include'
+        // Validation request
+        const validationRes = await fetch('/api/events/validate-token', {
+          headers: { 'Authorization': `Bearer ${token}` }
         });
         
-        if (!eventsRes.ok) throw new Error('Failed to fetch events');
+        if (!validationRes.ok) throw new Error('Invalid token');
+        
+        // Fetch events
+        const eventsRes = await fetch('/api/events', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
         
         const eventsData = await eventsRes.json();
-  
-        setEvents(eventsData.map(evt => ({
-          title: evt.title,
-          start: new Date(evt.start),
-          end: new Date(evt.end),
-          extendedProps: {
-            status: evt.isVerified ? 'Confirmed' : 'Pending'
-          }
-        })));
+        // ... rest of the code
       } catch (error) {
-        console.error('Calendar error:', error);
-        localStorage.removeItem('eventToken');
+        localStorage.removeItem('token');
         navigate('/');
-      } finally {
-        setLoading(false);
       }
     };
-  
     fetchData();
   }, [navigate]);
 

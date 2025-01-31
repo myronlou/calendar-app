@@ -49,6 +49,20 @@ const RegisterGuard = ({ children }) => {
   return children;
 };
 
+const CustomerRoute = ({ children }) => {
+  const token = localStorage.getItem('token');
+  const role = localStorage.getItem('userRole');
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!token || role !== 'customer') {
+      navigate('/');
+    }
+  }, [token, role, navigate]);
+
+  return token && role === 'customer' ? children : null;
+};
+
 const TokenValidator = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -99,15 +113,20 @@ function App() {
       if (!token) return;
   
       try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/events/validate-token`, {
-          method: 'GET',
-          headers: { 
-            'Authorization': `Bearer ${token}` 
-          }
+        const res = await fetch('/api/events/validate-token', {
+          headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (!res.ok) localStorage.removeItem('token');
+        
+        if (res.ok) {
+          const { role } = await res.json();
+          localStorage.setItem('userRole', role);
+        } else {
+          localStorage.removeItem('token');
+          localStorage.removeItem('userRole');
+        }
       } catch (error) {
         localStorage.removeItem('token');
+        localStorage.removeItem('userRole');
       }
     };
   
@@ -121,7 +140,7 @@ function App() {
       <Router>
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/calendar" element={<PublicCalendar />} />
+          <Route path="/calendar" element={<CustomerRoute><PublicCalendar /></CustomerRoute>} />
           <Route path="/token" element={<TokenValidator />} />
 
           <Route path="/auth/verify" element={<AuthGuard><VerifyPage /></AuthGuard>} />

@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import './AuthPage.css';
+import loadingGif from './gif/loading.gif';
 
 function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -7,8 +9,31 @@ function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isValidating, setIsValidating] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  const passwordRequirements = useMemo(() => [
+    {
+      label: 'At least 8 characters long',
+      test: (val) => val.length >= 8,
+    },
+    {
+      label: 'Contains an uppercase letter',
+      test: (val) => /[A-Z]/.test(val),
+    },
+    {
+      label: 'Contains a lowercase letter',
+      test: (val) => /[a-z]/.test(val),
+    },
+    {
+      label: 'Contains a number',
+      test: (val) => /\d/.test(val),
+    },
+  ], []);
+
+  const allRequirementsMet = passwordRequirements.every(req => req.test(password));
+  const passwordsMatch = password === confirmPassword;
 
   useEffect(() => {
     const validateAccess = async () => {
@@ -64,9 +89,16 @@ function RegisterPage() {
   const handleRegister = async (e) => {
     e.preventDefault();
     setErrorMsg('');
+    setIsSubmitting(true);
 
-    if (password !== confirmPassword) {
-      setErrorMsg('Passwords do not match');
+    if (!allRequirementsMet) {
+      setErrorMsg('Password does not meet the requirements.');
+      setIsSubmitting(false);
+      return;
+    }
+    if (!passwordsMatch) {
+      setErrorMsg('Passwords do not match.');
+      setIsSubmitting(false);
       return;
     }
 
@@ -93,66 +125,100 @@ function RegisterPage() {
 
     } catch (error) {
       setErrorMsg(error.message || 'Failed to start registration process');
+      setIsSubmitting(false);
     }
   };
 
   if (isValidating) {
-    return <div className="loading-screen">Validating booking details...</div>;
+    // Show your existing "validating" screen
+    return (
+      <div className="loading-screen">
+        <img src={loadingGif} alt="Loading" className="loading-icon" />
+        Validating booking details...
+      </div>
+    );
   }
 
   return (
     <div className="auth-container">
-      <h2>Complete Registration</h2>
-      <p className="auth-notice">
-        You're registering with the email used for your booking.
-      </p>
+      <div className="auth-box">
+        <h2 className="auth-title">Create an account</h2>
+        <p className="auth-subtitle">
+          Enter your password below to finish creating your account.
+        </p>
 
-      {errorMsg && <div className="error-message">{errorMsg}</div>}
+        {errorMsg && <div className="error-message">{errorMsg}</div>}
 
-      <form onSubmit={handleRegister}>
-        <div className="form-group">
-          <label>Email:</label>
-          <input
-            type="email"
-            value={email}
-            readOnly
-            className="disabled-input"
-          />
-        </div>
+        <form onSubmit={handleRegister}>
+          <div className="form-group">
+            <label>Email:</label>
+            <input
+              type="email"
+              value={email}
+              readOnly
+              className="disabled-input"
+            />
+          </div>
 
-        <div className="form-group">
-          <label>Password:</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength="8"
-          />
-        </div>
+          <div className="form-group">
+            <label>Password:</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              placeholder="Create a password"
+            />
+            {/* Password Requirements List */}
+            <ul className="password-requirements">
+              {passwordRequirements.map(({ label, test }) => {
+                const requirementMet = test(password);
+                return (
+                  <li
+                    key={label}
+                    className={requirementMet ? "met-requirement" : "unmet-requirement"}
+                  >
+                    {/* Show a check or bullet */}
+                    {requirementMet ? '✔' : '•'} {label}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
 
-        <div className="form-group">
-          <label>Confirm Password:</label>
-          <input
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-            minLength="8"
-          />
-        </div>
+          <div className="form-group">
+            <label>Confirm Password:</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              placeholder="Confirm your password"
+            />
+            {confirmPassword.length > 0 && !passwordsMatch && (
+              <p className="confirm-alert">Passwords do not match.</p>
+            )}
+          </div>
 
-        <button type="submit" className="primary-button">
-          Continue to Verification
-        </button>
-      </form>
+          <button
+            type="submit"
+            className="primary-button"
+            disabled={!allRequirementsMet || !passwordsMatch || isSubmitting}
+          >
+            {isSubmitting 
+              ? <img src={loadingGif} alt="Loading" className="loading-icon" />
+              : 'Continue to Verification'
+            }
+          </button>
+        </form>
 
-      <p className="auth-redirect">
-        Already have an account?{' '}
-        <a href={`/auth/login?email=${encodeURIComponent(email)}`}>
-          Login here
-        </a>
-      </p>
+        <p className="auth-redirect">
+          Already have an account?{" "}
+          <a href={`/auth/login?email=${encodeURIComponent(email)}`}>
+            Login here
+          </a>
+        </p>
+      </div>
     </div>
   );
 }

@@ -1,0 +1,192 @@
+/* AuthPage.css */
+
+/* Page container */
+.auth-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background-color: #fff;
+    margin: 0;
+  }
+  
+  /* Card/box container */
+  .auth-box {
+    max-width: 400px;
+    width: 100%;
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 2rem;
+  }
+  
+  /* Titles and subtitles */
+  .auth-title {
+    font-size: 1.5rem;
+    margin-bottom: 0.75rem;
+    font-weight: bold;
+    text-align: center;
+    color: #000;
+  }
+  
+  .auth-subtitle {
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+    text-align: center;
+    color: #333;
+  }
+  
+  /* Error message */
+  .error-message {
+    background-color: #fbdcdc;
+    color: #b00000;
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+  }
+  
+  /* Form elements */
+  .form-group {
+    margin-bottom: 1rem;
+  }
+  
+  .form-group label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 0.4rem;
+    color: #333;
+  }
+  
+  .form-group input {
+    width: 100%;
+    padding: 0.6rem;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+  
+  /* Disabled appearance for read-only or loading states */
+  .disabled-input {
+    background-color: #f3f3f3;
+    cursor: not-allowed;
+  }
+  
+  /* Primary button */
+  .primary-button {
+    width: 100%;
+    padding: 0.75rem;
+    background-color: #FFC72C; /* Your accent color */
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 0.5rem;
+    color: #000;
+  }
+  
+  .primary-button:hover {
+    background-color: #e6b22c;
+  }
+  
+  .primary-button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
+  
+  /* Loading spinner */
+  .loading-icon {
+    width: 32px; /* Increase size as desired */
+    height: 32px;
+    object-fit: contain; /* Keep aspect ratio */
+    vertical-align: middle;
+  }
+  
+  /* Auth redirect link/paragraph */
+  .auth-redirect {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    text-align: center;
+  }
+  
+  .auth-redirect a {
+    color: #FFC72C;
+    text-decoration: none;
+    font-weight: 600;
+  }
+  
+  .auth-redirect a:hover {
+    text-decoration: underline;
+  }
+  
+  .text-button {
+    background: none;
+    border: none;
+    color: #FFC72C;
+    font-weight: bold;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .text-button:hover {
+    color: #e6b22c;
+  }
+  
+  /* Optional custom classes for password requirements (Register only) */
+  .password-requirements {
+    list-style: none;
+    margin: 0.25rem 0 0;
+    padding: 0;
+    font-size: 0.85rem;
+    line-height: 1.2;
+  }
+  
+  .password-requirements li {
+    margin: 0.15rem 0;
+  }
+  
+  .met-requirement {
+    color: green;
+  }
+  
+  .unmet-requirement {
+    color: grey;
+  }
+  
+  .confirm-alert {
+    color: #d00;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+  }
+  
+  /* Loading screen for validating states (optional) */
+  .loading-screen {
+    position: relative;
+    width: 100%;
+    min-height: 100vh; /* Full vertical space */
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    font-family: sans-serif;
+    font-size: 1.2rem;
+    color: #fff;
+  }
+  
+  .loading-screen img {
+    /* Fill from top to bottom, maintain aspect ratio */
+    height: 80vh;    /* or 100% if you prefer */
+    width: auto;
+    object-fit: contain;
+    display: block;
+  }
+  
+  

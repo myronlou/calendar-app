@@ -272,7 +272,11 @@ app.get('/api/events/check-email', async (req, res) => {
 
 // Add validate-token endpoint
 app.get('/api/events/validate-token', authMiddleware, (req, res) => {
-  res.status(200).json({ valid: true });
+  // Return user role in response
+  res.status(200).json({ 
+    valid: true,
+    role: req.user.role 
+  });
 });
 
 // -------------------- EVENT ROUTES --------------------

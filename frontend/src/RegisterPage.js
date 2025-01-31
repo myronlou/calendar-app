@@ -5,16 +5,61 @@ function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [otp, setOtp] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [isValidating, setIsValidating] = useState(true);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Pre-fill and lock email from query params
   useEffect(() => {
-    const urlEmail = searchParams.get('email');
-    if (urlEmail) setEmail(decodeURIComponent(urlEmail));
-  }, [searchParams]);
+    const validateAccess = async () => {
+      setIsValidating(true);
+      const urlToken = searchParams.get('token');
+      const urlEmail = searchParams.get('email');
+
+      // Immediate parameter check
+      if (!urlToken || !urlEmail) {
+        navigate('/');
+        return;
+      }
+
+      try {
+        // Server-side validation
+        const response = await fetch(
+          `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/events/check-email?token=${urlToken}`
+        );
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Invalid booking reference');
+        }
+
+        const { email: validatedEmail, hasAccount } = await response.json();
+        
+        // Email consistency check
+        if (validatedEmail.toLowerCase() !== urlEmail.toLowerCase()) {
+          throw new Error('Email mismatch detected');
+        }
+
+        // Account existence check
+        if (hasAccount) {
+          navigate(`/auth/login?email=${encodeURIComponent(validatedEmail)}`);
+          return;
+        }
+
+        setEmail(validatedEmail);
+        setIsValidating(false);
+
+      } catch (error) {
+        navigate('/', { 
+          state: { 
+            error: error.message || 'Invalid registration access' 
+          } 
+        });
+      }
+    };
+
+    validateAccess();
+  }, [searchParams, navigate]);
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -26,35 +71,40 @@ function RegisterPage() {
     }
 
     try {
-      const response = await fetch('http://localhost:5001/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/otp/generate`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, type: 'auth' })
+        }
+      );
+
+      if (!response.ok) throw new Error('OTP generation failed');
+
+      navigate('/auth/verify', {
+        state: {
           email,
           password,
-          otp
-        })
+          managementToken: searchParams.get('token'),
+          isRegistration: true
+        }
       });
 
-      const data = await response.json();
-      
-      if (response.ok) {
-        localStorage.setItem('token', data.token);
-        navigate('/calendar'); // Redirect to management page
-      } else {
-        setErrorMsg(data.error || 'Registration failed');
-      }
     } catch (error) {
-      setErrorMsg('Network or server error');
+      setErrorMsg(error.message || 'Failed to start registration process');
     }
   };
 
+  if (isValidating) {
+    return <div className="loading-screen">Validating booking details...</div>;
+  }
+
   return (
-    <div style={{ maxWidth: '400px', margin: '0 auto' }}>
+    <div className="auth-container">
       <h2>Complete Registration</h2>
-      <p className="registration-notice">
+      <p className="auth-notice">
         You're registering with the email used for your booking.
-        Check your email for the verification code.
       </p>
 
       {errorMsg && <div className="error-message">{errorMsg}</div>}
@@ -66,17 +116,7 @@ function RegisterPage() {
             type="email"
             value={email}
             readOnly
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Verification Code:</label>
-          <input
-            type="text"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value)}
-            placeholder="Enter OTP from email"
-            required
+            className="disabled-input"
           />
         </div>
 
@@ -87,6 +127,7 @@ function RegisterPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            minLength="8"
           />
         </div>
 
@@ -97,17 +138,20 @@ function RegisterPage() {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
+            minLength="8"
           />
         </div>
 
         <button type="submit" className="primary-button">
-          Complete Registration
+          Continue to Verification
         </button>
       </form>
 
       <p className="auth-redirect">
         Already have an account?{' '}
-        <a href={`/auth/login?email=${encodeURIComponent(email)}`}>Login here</a>
+        <a href={`/auth/login?email=${encodeURIComponent(email)}`}>
+          Login here
+        </a>
       </p>
     </div>
   );

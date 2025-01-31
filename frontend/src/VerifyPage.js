@@ -1,85 +1,115 @@
-// client/src/VerifyPage.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 function VerifyPage() {
-  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
+  const [email, setEmail] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
-    // parse query param "email"
-    const params = new URLSearchParams(location.search);
-    const userEmail = params.get('email');
-
-    if (userEmail) {
-      setEmail(userEmail);
+    if (!location.state?.email || !location.state?.managementToken) {
+      navigate('/');
+      return;
     }
-  }, [location.search]);
+    setEmail(location.state.email);
+  }, [location.state, navigate]);
 
   const handleVerify = async (e) => {
     e.preventDefault();
     setErrorMsg('');
 
     try {
-      const res = await fetch('http://localhost:5000/auth/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code })
-      });
-      const data = await res.json();
+      // Verify OTP first
+      const verifyResponse = await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/otp/verify`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            email: location.state.email,
+            code,
+            type: 'auth'
+          })
+        }
+      );
 
-      if (res.ok) {
-        // Verification succeeded
-        // maybe show success or redirect to login
-        navigate('/auth/login');
-      } else {
-        setErrorMsg(data.error || 'Verification failed');
+      if (!verifyResponse.ok) {
+        const errorData = await verifyResponse.json();
+        throw new Error(errorData.error || 'OTP verification failed');
       }
+
+      const { token: otpToken } = await verifyResponse.json();
+
+      // Complete registration
+      const regResponse = await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/auth/register`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: location.state.email,
+            password: location.state.password,
+            otpVerificationToken: otpToken,
+            managementToken: location.state.managementToken
+          })
+        }
+      );
+
+      if (!regResponse.ok) {
+        const errorData = await regResponse.json();
+        throw new Error(errorData.error || 'Registration failed');
+      }
+
+      const { token: authToken } = await regResponse.json();
+      localStorage.setItem('token', authToken);
+      navigate('/calendar');
+
     } catch (error) {
-      console.error(error);
-      setErrorMsg('Network or server error');
+      setErrorMsg(error.message || 'Verification failed');
     }
   };
 
   return (
-    <div style={{ maxWidth: '400px', margin: '0 auto' }}>
-      <h2>Verify Email</h2>
-
-      {errorMsg && (
-        <div style={{ color: 'red', marginBottom: '1rem' }}>
-          {errorMsg}
-        </div>
-      )}
+    <div className="auth-container">
+      <h2>Complete Registration</h2>
+      {errorMsg && <div className="error-message">{errorMsg}</div>}
 
       <form onSubmit={handleVerify}>
-        <div>
-          <label>Email: </label>
-          <input 
-            type="email"
-            value={email}
-            readOnly // so the user doesn't need to retype it
-          />
-        </div>
+        <p className="auth-notice">
+          Verification code sent to {email}
+        </p>
 
-        <div>
-          <label>Verification Code (6 digits): </label>
+        <div className="form-group">
+          <label>Verification Code:</label>
           <input 
             type="text"
             value={code}
-            onChange={e => setCode(e.target.value)}
-            maxLength={6}
-            required 
+            onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoComplete="one-time-code"
+            required
           />
         </div>
 
-        <button type="submit">Verify</button>
+        <button type="submit" className="primary-button">
+          Complete Registration
+        </button>
       </form>
+
+      <p className="auth-redirect">
+        Didn't receive a code?{' '}
+        <button 
+          className="text-button"
+          onClick={() => navigate('/auth/register')}
+        >
+          Resend code
+        </button>
+      </p>
     </div>
   );
 }
 
 export default VerifyPage;
-

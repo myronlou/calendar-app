@@ -13,6 +13,7 @@ import Calendar from './Calendar';
 // Public Components
 import HomePage from './HomePage';
 import LoginPage from './LoginPage';
+import RegisterPage from './RegisterPage';
 import VerifyPage from './VerifyPage';
 import PublicCalendar from './PublicCalendar';
 
@@ -21,32 +22,74 @@ const ProtectedRoute = ({ children }) => {
   return token ? children : <Navigate to="/auth/login" replace />;
 };
 
+const AuthGuard = ({ children }) => {
+  const token = localStorage.getItem('token');
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (token) navigate('/calendar');
+  }, [token, navigate]);
+
+  return !token ? children : null;
+};
+
+const RegisterGuard = ({ children }) => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = searchParams.get('token');
+    const email = searchParams.get('email');
+    
+    if (!token || !email) {
+      navigate('/');
+    }
+  }, [searchParams, navigate]);
+
+  return children;
+};
+
 const TokenValidator = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get('token');
 
   useEffect(() => {
-    const checkEmail = async () => {
+    const validateToken = async () => {
       try {
-        const res = await fetch(`/api/events/check-email?token=${token}`);
-        const { hasAccount, email } = await res.json();
-        
-        if (hasAccount) {
-          navigate(`/auth/login?email=${encodeURIComponent(email)}`);
-        } else {
-          navigate(`/auth/register?email=${encodeURIComponent(email)}`);
+        const response = await fetch(
+          `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/events/check-email?token=${token}`
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          const encodedEmail = encodeURIComponent(errorData.email || '');
+          
+          if (errorData.error === 'Booking already claimed') {
+            navigate(`/auth/login?email=${encodedEmail}&error=claimed`);
+          } else {
+            navigate('/', { state: { error: errorData.error } });
+          }
+          return;
         }
+
+        const { hasAccount, email } = await response.json();
+        const encodedEmail = encodeURIComponent(email);
+
+        hasAccount 
+          ? navigate(`/auth/login?email=${encodedEmail}`)
+          : navigate(`/auth/register?email=${encodedEmail}&token=${token}`);
+
       } catch (error) {
-        navigate('/');
+        navigate('/', { state: { error: 'Invalid booking link' } });
       }
     };
-  
-    if (token) checkEmail();
+
+    if (token) validateToken();
     else navigate('/');
   }, [token, navigate]);
 
-  return <div>Redirecting to your bookings...</div>;
+  return <div className="loading-screen">Validating booking details...</div>;
 };
 
 function App() {
@@ -56,7 +99,7 @@ function App() {
       if (!token) return;
   
       try {
-        const res = await fetch('/api/events/validate-token', {
+        const res = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/events/validate-token`, {
           method: 'GET',
           headers: { 
             'Authorization': `Bearer ${token}` 
@@ -78,10 +121,12 @@ function App() {
       <Router>
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/auth/verify" element={<VerifyPage />} />
-          <Route path="/auth/login" element={<LoginPage />} />
           <Route path="/calendar" element={<PublicCalendar />} />
           <Route path="/token" element={<TokenValidator />} />
+
+          <Route path="/auth/verify" element={<AuthGuard><VerifyPage /></AuthGuard>} />
+          <Route path="/auth/login" element={<AuthGuard><LoginPage /></AuthGuard>} />
+          <Route path="/auth/register" element={<AuthGuard><RegisterGuard><RegisterPage /></RegisterGuard></AuthGuard>} />
 
           <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
             <Route index element={<Navigate to="calendar" replace />} />

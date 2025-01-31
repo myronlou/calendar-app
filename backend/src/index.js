@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 const authMiddleware = require('./authMiddleware');
+const validateRegistrationTokens = require('./validateRegiistrationTokens');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
@@ -12,7 +13,6 @@ const { sendOtpEmail, sendBookingConfirmation, sendBookingUpdate, sendBookingCan
 
 const app = express();
 const prisma = new PrismaClient();
-const generateOTP = () => crypto.randomInt(100000, 999999).toString();
 // Security Middleware
 const corsOptions = {
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
@@ -45,12 +45,32 @@ async function initializeAdmin() {
 }
 initializeAdmin().catch(console.error);
 
+// Add at the top with other requires
+const registrationSessions = new Map();
+
+// Add session cleanup interval (place after Prisma client initialization)
+setInterval(() => {
+  const now = Date.now();
+  registrationSessions.forEach((session, email) => {
+    if (now - session.createdAt > 15 * 60 * 1000) { // 15-minute expiry
+      registrationSessions.delete(email);
+    }
+  });
+}, 5 * 60 * 1000); // Clean every 5 minutes
+
 // -------------------- AUTHENTICATION ROUTES --------------------
 app.post('/api/otp/generate', async (req, res) => {
   const { email, type } = req.body;
   
   if (!['auth', 'booking'].includes(type)) {
     return res.status(400).json({ error: 'Invalid OTP type' });
+  }
+
+  if (type === 'auth') {
+    registrationSessions.set(email.toLowerCase(), {
+      createdAt: Date.now(),
+      valid: true
+    });
   }
 
   const code = crypto.randomInt(100000, 999999).toString();
@@ -66,6 +86,7 @@ app.post('/api/otp/generate', async (req, res) => {
     await sendOtpEmail(email, code, type);
     res.json({ success: true });
   } catch (error) {
+    registrationSessions.delete(email.toLowerCase());
     res.status(500).json({ error: 'OTP generation failed' });
   }
 });
@@ -100,11 +121,14 @@ app.post('/api/otp/verify', async (req, res) => {
     const isValid = await verifyOtp(email, code, type);
     
     if (isValid) {
-      // Generate a short-lived token (5 minutes)
       const token = jwt.sign(
-        { email, type, verified: true },
+        { 
+          email: email.toLowerCase(), // Standardize email case
+          type,
+          verified: true 
+        },
         process.env.JWT_SECRET,
-        { expiresIn: '5m' }
+        { expiresIn: '5m' } // Short-lived verification token
       );
       res.json({ success: true, token });
     } else {
@@ -118,39 +142,59 @@ app.post('/api/otp/verify', async (req, res) => {
 // Updated Registration Endpoint
 app.post('/auth/register', async (req, res) => {
   try {
-    const { email, password, otp } = req.body;
-    
-    // Verify OTP first
-    const isValid = await verifyOtp(email, otp, 'auth');
-    if (!isValid) return res.status(400).json({ error: 'Invalid OTP' });
+    const { email, password, otpVerificationToken, managementToken } = req.body;
 
-    // Create user with role
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Verify and decode both tokens
+    const managementDecoded = jwt.verify(managementToken, process.env.JWT_SECRET);
+    const otpDecoded = jwt.verify(otpVerificationToken, process.env.JWT_SECRET);
+
+    // Validate token consistency
+    const tokenEmail = managementDecoded.email.toLowerCase();
+    const otpEmail = otpDecoded.email.toLowerCase();
+    const requestEmail = email.toLowerCase();
+
+    if (tokenEmail !== otpEmail || tokenEmail !== requestEmail) {
+      return res.status(400).json({ error: 'Email mismatch detected' });
+    }
+
+    // Check for existing user
+    const existingUser = await prisma.user.findUnique({ 
+      where: { email: tokenEmail } 
+    });
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists' });
+    }
+
+    // Create new user
     const user = await prisma.user.create({
       data: {
-        email: email.toLowerCase(),
-        password: hashedPassword,
-        role: 'customer', // Explicit role assignment
+        email: tokenEmail,
+        password: await bcrypt.hash(password, 10),
+        role: 'customer',
         verified: true
       }
     });
 
-    // Link events
+    // Link existing events
     await prisma.event.updateMany({
-      where: { email: user.email },
+      where: { email: tokenEmail },
       data: { userId: user.id }
     });
 
-    // Generate token with role
-    const token = jwt.sign(
+    // Generate auth token
+    const authToken = jwt.sign(
       { userId: user.id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' } // Match login token expiry
+      { expiresIn: '7d' }
     );
 
-    res.json({ token, role: user.role });
+    res.json({ token: authToken, role: user.role });
   } catch (error) {
-    res.status(400).json({ error: 'Registration failed' });
+    console.error('Registration error:', error);
+    const errorMessage = error.name === 'JsonWebTokenError' 
+      ? 'Invalid verification token' 
+      : 'Registration failed';
+    res.status(400).json({ error: errorMessage });
   }
 });
 
@@ -200,12 +244,28 @@ app.get('/api/events/check-email', async (req, res) => {
     const token = req.query.token;
     if (!token) return res.status(400).json({ error: 'Token missing' });
 
+    // Verify token and decode claims
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const email = decoded.email;
+    const { email, eventId } = decoded;
 
+    // Validate booking exists and is unclaimed
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { userId: true }
+    });
+
+    if (!event) return res.status(404).json({ error: 'Booking not found' });
+    if (event.userId) return res.status(409).json({ error: 'Booking already claimed' });
+
+    // Check user existence
     const user = await prisma.user.findUnique({ where: { email } });
-    res.json({ hasAccount: !!user, email });
+    res.json({ 
+      hasAccount: !!user,
+      email: email.toLowerCase()
+    });
+
   } catch (error) {
+    console.error('Check-email error:', error);
     res.status(401).json({ error: 'Invalid or expired token' });
   }
 });

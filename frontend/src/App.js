@@ -108,32 +108,32 @@ const TokenValidator = () => {
 
 function App() {
   useEffect(() => {
-    const validateToken = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-  
-      try {
-        const res = await fetch('/api/events/validate-token', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (res.ok) {
-          const { role } = await res.json();
-          localStorage.setItem('userRole', role);
-        } else {
-          localStorage.removeItem('token');
-          localStorage.removeItem('userRole');
-        }
-      } catch (error) {
+  const validateToken = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const res = await fetch('/api/events/validate-token', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (res.ok) {
+        const { role } = await res.json();
+        localStorage.setItem('userRole', role);
+      } else {
         localStorage.removeItem('token');
         localStorage.removeItem('userRole');
       }
-    };
-  
-    validateToken();
-    const interval = setInterval(validateToken, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
+    } catch (error) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('userRole');
+    }
+  };
+
+  validateToken();
+  const interval = setInterval(validateToken, 5 * 60 * 1000);
+  return () => clearInterval(interval);
+}, []);
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>

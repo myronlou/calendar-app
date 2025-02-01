@@ -200,40 +200,52 @@ app.post('/auth/register', async (req, res) => {
 
 app.post('/auth/login', async (req, res) => {
   try {
-    const { email, otp } = req.body; // Remove password from request
-    const user = await prisma.user.findUnique({ where: { email } });
+    const { email, otp, verificationToken } = req.body;
 
-    if (user.role === 'admin') {
-      // Admin must always verify OTP
-      const isValid = await verifyOtp(email, otp, 'auth');
-      if (!isValid) return res.status(400).json({ error: 'Invalid OTP' });
+    // If using pre-verified token (from OTP verification)
+    if (verificationToken) {
+      const decoded = jwt.verify(verificationToken, process.env.JWT_SECRET);
+      const user = await prisma.user.findUnique({
+        where: { email: decoded.email }
+      });
+
+      if (!user) return res.status(404).json({ error: 'User not found' });
+
+      const authToken = jwt.sign(
+        { userId: user.id, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      return res.json({ token: authToken, role: user.role });
     }
 
-    // Check if OTP verification is required (every 7 days)
-    const needsOtp = !user.lastOtpVerifiedAt || 
-      (Date.now() - user.lastOtpVerifiedAt.getTime()) > 7 * 24 * 60 * 60 * 1000;
+    // Regular OTP login flow
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    if (needsOtp) {
-      // Verify OTP for 'auth' type
-      const isValid = await verifyOtp(email, otp, 'auth');
-      if (!isValid) return res.status(400).json({ error: 'Invalid OTP' });
+    // Verify OTP
+    const isValid = await verifyOtp(email, otp, 'auth');
+    if (!isValid) return res.status(400).json({ error: 'Invalid OTP' });
 
-      // Update last verification time
+    // Update last verification time for non-admin users
+    if (user.role !== 'admin') {
       await prisma.user.update({
         where: { id: user.id },
         data: { lastOtpVerifiedAt: new Date() }
       });
     }
 
-    // Generate token with role
-    const token = jwt.sign(
+    const authToken = jwt.sign(
       { userId: user.id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' } // Consistent 7-day expiry
+      { expiresIn: '7d' }
     );
 
-    res.json({ token, role: user.role });
+    res.json({ token: authToken, role: user.role });
+
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ error: 'Login failed' });
   }
 });

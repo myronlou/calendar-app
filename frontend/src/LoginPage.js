@@ -1,83 +1,81 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import './AuthPage.css';
+import loadingGif from './gif/loading.gif';
 
-function LoginPage() {
+function LoginEmailPage() {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
-  const [searchParams] = useSearchParams();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
 
-  // Pre-fill email from query params
-  useEffect(() => {
-    const urlEmail = searchParams.get('email');
-    if (urlEmail) setEmail(decodeURIComponent(urlEmail));
-  }, [searchParams]);
-
-  const handleLogin = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
+    setIsSubmitting(true);
 
     try {
-      const res = await fetch('http://localhost:5001/auth/login', {
+      // Generate OTP
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/otp/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, type: 'auth' })
       });
-      
-      const data = await res.json();
-      
-      if (res.ok && data.token) {
-        localStorage.setItem('token', data.token);
-        navigate('/calendar'); // Redirect to management page
-      } else {
-        setErrorMsg(data.error || 'Login failed');
-      }
+
+      if (!response.ok) throw new Error('OTP generation failed');
+
+      // Navigate to verify page with email
+      navigate('/auth/verify', {
+        state: {
+          email,
+          isLoginFlow: true
+        }
+      });
+
     } catch (error) {
-      setErrorMsg('Network or server error');
+      setErrorMsg(error.message || 'Failed to send OTP');
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div style={{ maxWidth: '400px', margin: '0 auto' }}>
-      <h2>Login to Manage Bookings</h2>
-      {errorMsg && <div className="error-message">{errorMsg}</div>}
+    <div className="auth-container">
+      <div className="auth-box">
+        <h2 className="auth-title">Login with Email</h2>
+        <p className="auth-subtitle">
+          Enter your email address linked with your booking with below to receive a one-time code.
+        </p>
 
-      <form onSubmit={handleLogin}>
-        <div className="form-group">
-          <label>Email:</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            readOnly={!!searchParams.get('email')}
-          />
-        </div>
+        {errorMsg && <div className="error-message">{errorMsg}</div>}
 
-        <div className="form-group">
-          <label>Password:</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Email:</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoFocus
+              placeholder="Enter your email"
+            />
+          </div>
 
-        <button type="submit" className="primary-button">
-          Login
-        </button>
-      </form>
-
-      <p className="auth-redirect">
-        Don't have an account?{' '}
-        <a href={`/auth/register?email=${encodeURIComponent(email)}`}>
-          Register with this email
-        </a>
-      </p>
+          <button
+            type="submit"
+            className="primary-button"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <img src={loadingGif} alt="Loading" className="loading-icon" />
+            ) : (
+              'Send OTP'
+            )}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
 
-export default LoginPage;
+export default LoginEmailPage;

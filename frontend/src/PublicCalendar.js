@@ -17,19 +17,24 @@ function PublicCalendar() {
   
       try {
         // Validation request
-        const validationRes = await fetch('/api/events/validate-token', {
+        const validationRes = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/events/validate-token`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
         if (!validationRes.ok) throw new Error('Invalid token');
         
         // Fetch events
-        const eventsRes = await fetch('/api/events', {
+        const eventsRes = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/events`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        
+        if (!eventsRes.ok) {
+          throw new Error('Failed to fetch events');
+        }
+
         const eventsData = await eventsRes.json();
-        // ... rest of the code
+        setEvents(eventsData);
+        setLoading(false);
+
       } catch (error) {
         localStorage.removeItem('token');
         navigate('/');

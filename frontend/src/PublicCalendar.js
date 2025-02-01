@@ -9,22 +9,25 @@ function PublicCalendar() {
   const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
   useEffect(() => {
     const fetchData = async () => {
-      const token = localStorage.getItem('token'); // Changed from 'eventToken'
-      if (!token) return navigate('/');
+      const token = localStorage.getItem('token');
+      if (!token) {
+        navigate('/');
+        return;
+      }
   
       try {
-        // Validation request
-        const validationRes = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/events/validate-token`, {
+        // Validate token
+        const validationRes = await fetch(`${API_URL}/api/events/validate-token`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        
         if (!validationRes.ok) throw new Error('Invalid token');
         
         // Fetch events
-        const eventsRes = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/events`, {
+        const eventsRes = await fetch(`${API_URL}/api/events`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!eventsRes.ok) {
@@ -34,14 +37,13 @@ function PublicCalendar() {
         const eventsData = await eventsRes.json();
         setEvents(eventsData);
         setLoading(false);
-
       } catch (error) {
         localStorage.removeItem('token');
         navigate('/');
       }
     };
     fetchData();
-  }, [navigate]);
+  }, [navigate, API_URL]);
 
   if (loading) {
     return (
@@ -65,20 +67,23 @@ function PublicCalendar() {
           center: 'title',
           right: 'dayGridMonth,timeGridWeek,timeGridDay,listMonth'
         }}
-        eventContent={({ event }) => (
-          <div className="calendar-event">
-            <div className="event-header">
-              <strong>{event.title}</strong>
-              <span className={`status-badge ${event.extendedProps.status.toLowerCase()}`}>
-                {event.extendedProps.status}
-              </span>
+        eventContent={({ event }) => {
+          // Use a default status if event.extendedProps.status is undefined.
+          const status = event.extendedProps.status || 'confirmed';
+          return (
+            <div className="calendar-event">
+              <div className="event-header">
+                <strong>{event.title}</strong>
+                <span className={`status-badge ${status.toLowerCase()}`}>
+                  {status}
+                </span>
+              </div>
+              <div className="event-time">
+                {event.start.toLocaleDateString()} • {event.start.toLocaleTimeString()} - {event.end.toLocaleTimeString()}
+              </div>
             </div>
-            <div className="event-time">
-              {event.start.toLocaleDateString()} • 
-              {event.start.toLocaleTimeString()} - {event.end.toLocaleTimeString()}
-            </div>
-          </div>
-        )}
+          );
+        }}
       />
     </div>
   );

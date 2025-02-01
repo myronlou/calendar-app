@@ -418,19 +418,18 @@ app.get('/api/events', authMiddleware, async (req, res) => {
   try {
     const events = await prisma.event.findMany({
       where: {
-        userId: req.user.userId,
-        deletedAt: null
+        userId: req.user.userId
       },
       select: {
         id: true,
         title: true,
         start: true,
-        end: true,
-        isVerified: true
+        end: true
       }
     });
     res.json(events);
   } catch (error) {
+    console.error('Error fetching events:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

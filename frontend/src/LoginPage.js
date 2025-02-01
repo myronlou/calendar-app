@@ -57,7 +57,7 @@ function LoginEmailPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoFocus
-              placeholder="Enter your email"
+              placeholder="me@example.com"
             />
           </div>
 

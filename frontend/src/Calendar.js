@@ -6,6 +6,8 @@ import interactionPlugin from '@fullcalendar/interaction';
 import CreateEventModal from './CreateEventModal';
 import EditEventModal from './EditEventModal';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
 function Calendar() {
   const [events, setEvents] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -25,7 +27,7 @@ function Calendar() {
     if (!token) return navigate('/auth/login');
 
     try {
-      const res = await fetch('http://localhost:5001/api/admin/events', {
+      const res = await fetch(`${API_URL}/api/admin/events`, {
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -63,7 +65,7 @@ function Calendar() {
     if (!token) return;
 
     try {
-      const res = await fetch('http://localhost:5001/api/admin/events', {
+      const res = await fetch(`${API_URL}/api/admin/events`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -88,7 +90,7 @@ function Calendar() {
 
     try {
       const res = await fetch(
-        `http://localhost:5001/api/admin/events/${selectedEvent.id}`,
+        `${API_URL}/api/admin/events/${selectedEvent.id}`,
         {
           method: 'PUT',
           headers: {
@@ -119,7 +121,7 @@ function Calendar() {
 
     try {
       await fetch(
-        `http://localhost:5001/api/admin/events/${selectedEvent.id}`,
+        `${API_URL}/api/admin/events/${selectedEvent.id}`,
         {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` }

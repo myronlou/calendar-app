@@ -17,6 +17,8 @@ import RegisterPage from './RegisterPage';
 import VerifyPage from './VerifyPage';
 import PublicCalendar from './PublicCalendar';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('token');
   return token ? children : <Navigate to="/auth/login" replace />;
@@ -72,7 +74,7 @@ const TokenValidator = () => {
     const validateToken = async () => {
       try {
         const response = await fetch(
-          `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/events/check-email?token=${token}`
+          `${API_URL}/api/events/check-email?token=${token}`
         );
 
         if (!response.ok) {
@@ -113,7 +115,7 @@ function App() {
     if (!token) return;
 
     try {
-      const res = await fetch('/api/events/validate-token', {
+      const res = await fetch(`${API_URL}/api/events/validate-token`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       

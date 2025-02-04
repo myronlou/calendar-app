@@ -3,6 +3,8 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import './AuthPage.css';
 import loadingGif from './gif/loading.gif';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
 function VerifyPage() {
   const [code, setCode] = useState('');
   const [email, setEmail] = useState('');
@@ -57,7 +59,7 @@ function VerifyPage() {
     try {
       // Verify OTP first
       const verifyResponse = await fetch(
-        `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/otp/verify`,
+        `${API_URL}/api/otp/verify`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -79,7 +81,7 @@ function VerifyPage() {
       if (flowType === 'registration') {
         // Registration flow
         const regResponse = await fetch(
-          `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/auth/register`,
+          `${API_URL}/auth/register`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -104,7 +106,7 @@ function VerifyPage() {
       } else {
         // Login flow
         const loginResponse = await fetch(
-          `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/auth/login`,
+          `${API_URL}/auth/login`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -138,7 +140,7 @@ function VerifyPage() {
 
     try {
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/otp/generate`,
+        `${API_URL}/api/otp/generate`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

@@ -4,6 +4,8 @@ import 'react-phone-input-2/lib/style.css';
 import loadingGif from './gif/loading.gif';
 import './CustomerBookingModal.css';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
 function CustomerBookingModal({ isOpen, onClose }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -32,7 +34,7 @@ function CustomerBookingModal({ isOpen, onClose }) {
     setErrorMessage('');
     
     try {
-      const response = await fetch('http://localhost:5001/api/otp/generate', {
+      const response = await fetch(`${API_URL}/api/otp/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -101,7 +103,7 @@ function CustomerBookingModal({ isOpen, onClose }) {
         }
 
         // Generate booking OTP
-        const otpResponse = await fetch('http://localhost:5001/api/otp/generate', {
+        const otpResponse = await fetch(`${API_URL}/api/otp/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -122,7 +124,7 @@ function CustomerBookingModal({ isOpen, onClose }) {
         }
 
         // Verify booking OTP
-        const verifyResponse = await fetch('http://localhost:5001/api/otp/verify', {
+        const verifyResponse = await fetch(`${API_URL}/api/otp/verify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -142,7 +144,7 @@ function CustomerBookingModal({ isOpen, onClose }) {
         const startISO = new Date(`${formData.date}T${formData.time}:00`).toISOString();
         const endISO = new Date(new Date(startISO).getTime() + 3600000).toISOString();
 
-        const eventResponse = await fetch('http://localhost:5001/api/events', {
+        const eventResponse = await fetch(`${API_URL}/api/events`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

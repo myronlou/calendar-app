@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
 function BookingTypes() {
   const [bookingTypes, setBookingTypes] = useState([]);
   const [newType, setNewType] = useState({ name: '', duration: 30 });
@@ -7,7 +9,7 @@ function BookingTypes() {
   useEffect(() => {
     const fetchTypes = async () => {
       try {
-        const res = await fetch('http://localhost:5001/api/admin/booking-types', {
+        const res = await fetch(`${API_URL}/api/admin/booking-types`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
@@ -29,7 +31,7 @@ function BookingTypes() {
     if (!newType.name.trim()) return;
 
     try {
-      const res = await fetch('http://localhost:5001/api/admin/booking-types', {
+      const res = await fetch(`${API_URL}/api/admin/booking-types`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

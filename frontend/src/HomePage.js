@@ -24,7 +24,7 @@ function HomePage() {
 
   return (
     <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-      <h1>Welcome to Rideawave!</h1>
+      <h1>Welcome to Calendar-app!</h1>
       <p>This is our public info page. Learn more about our awesome services here!</p>
 
       <button onClick={goToCalendar}>

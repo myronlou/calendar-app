@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import './AuthPage.css';
 import loadingGif from './gif/loading.gif';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
 function LoginEmailPage() {
   const [email, setEmail] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -16,7 +18,7 @@ function LoginEmailPage() {
 
     try {
       // Generate OTP
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/otp/generate`, {
+      const response = await fetch(`${API_URL}/api/otp/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, type: 'auth' })

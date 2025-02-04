@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import './AuthPage.css';
 import loadingGif from './gif/loading.gif';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
 function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -50,7 +52,7 @@ function RegisterPage() {
       try {
         // Server-side validation
         const response = await fetch(
-          `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/events/check-email?token=${urlToken}`
+          `${API_URL}/api/events/check-email?token=${urlToken}`
         );
         
         if (!response.ok) {
@@ -104,7 +106,7 @@ function RegisterPage() {
 
     try {
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/otp/generate`,
+        `${API_URL}/api/otp/generate`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

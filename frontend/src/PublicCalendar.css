@@ -1,0 +1,197 @@
+/* ---------------------------
+   1) Page-Level Layout
+---------------------------- */
+.public-calendar-page {
+    display: flex;
+    flex-direction: column;
+    height: 100vh; /* Fill entire viewport */
+    margin: 0;
+    background-color: #fff; /* White overall background */
+    font-family: sans-serif;
+  }
+  
+  /* Top banner/header */
+  .public-calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: #000; /* Black header */
+    color: #fff;
+    padding: 0.75rem 1rem;
+  }
+  
+  /* Left side of header (title/logo) */
+  .header-left {
+    display: flex;
+    align-items: center;
+  }
+  
+  .app-title {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: bold;
+  }
+  
+  /* Right side of header (optional) */
+  .header-right {
+    display: flex;
+    gap: 1rem; /* space between items */
+  }
+  
+  /* Main content area below header */
+  .public-calendar-content {
+    flex: 1;          /* Grows to fill remaining space */
+    overflow: auto;   /* Scroll if needed */
+    background-color: #fff;
+    color: #000;      /* Default black text inside calendar area */
+    padding: 1rem;    /* Some padding around the calendar */
+  }
+  
+  /* ---------------------------
+     2) Loading Screen
+  ---------------------------- */
+  .loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2rem;
+    color: #FFC72C;
+  }
+  
+  .loading-spinner {
+    border: 4px solid #eee;
+    border-top: 4px solid #FFC72C;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 0.5rem;
+  }
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  /* ---------------------------
+     3) FullCalendar Overrides
+  ---------------------------- */
+  
+  /* The container FC uses for the entire calendar */
+  .fc {
+    background-color: #fff; /* White background */
+    color: #000;           /* Black text by default */
+    border: none;
+    font-family: sans-serif;
+  }
+  
+  /* Toolbar (where "Day", "Week", "Month", etc.) */
+  .fc .fc-toolbar {
+    background-color: #fff;
+    border-bottom: 1px solid #eee;
+    padding: 0.5rem;
+  }
+  
+  /* Title (e.g. "February 2025") */
+  .fc .fc-toolbar-title {
+    color: #000;
+    font-size: 1.25rem;
+    font-weight: bold;
+  }
+  
+  /* The previous/next/today and view buttons */
+  .fc .fc-button {
+    background: #fff;
+    border: 1px solid #FFC72C;
+    color: #000;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.9rem;
+    margin: 0 0.25rem;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .fc .fc-button:hover {
+    background: #FFC72C;
+    color: #000; /* black text on hover */
+  }
+  
+  .fc .fc-button:focus,
+  .fc .fc-button:active {
+    outline: none;
+    box-shadow: none;
+  }
+  
+  .fc .fc-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  
+  /* Month (dayGrid) cells */
+  .fc-daygrid-day-frame {
+    background: #fff;
+    border: 1px solid #f0f0f0;
+  }
+  
+  .fc-daygrid-day-number {
+    color: #000; 
+    font-weight: 600;
+  }
+  
+  /* Highlight "today" in a subtle way */
+  .fc .fc-day-today {
+    background-color: #fff7e6; /* Subtle highlight */
+  }
+  
+  /* Week/Day view slot lines */
+  .fc-timegrid-slot {
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .fc-timegrid-col {
+    border-right: 1px solid #f0f0f0;
+  }
+  
+  /* Default event appearance in the calendar grid */
+  .fc .fc-event {
+    background-color: #FFC72C;
+    color: #000; /* black text inside event */
+    border: none;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+  }
+  
+  /* "List" view items */
+  .fc .fc-list {
+    color: #333; /* A bit darker for readability */
+  }
+  .fc .fc-list .fc-list-item-marker {
+    border-color: #FFC72C;
+  }
+  .fc .fc-list .fc-list-item-title {
+    color: #000; /* black event title in list view */
+  }
+  .fc .fc-list-day-cushion {
+    background-color: #fff;
+  }
+  
+  /* Example custom event content (status badge) */
+  .status-badge {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    color: #fff;
+    background-color: #FFC72C; /* default accent color */
+  }
+  .status-badge.confirmed {
+    background-color: #00c851; /* green for "confirmed" */
+  }
+  .status-badge.pending {
+    background-color: #ffbb33; /* orange for "pending" */
+  }
+  .status-badge.cancelled {
+    background-color: #ff4444; /* red for "cancelled" */
+  }
+  

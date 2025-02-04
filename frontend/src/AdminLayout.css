@@ -1,0 +1,101 @@
+/* AdminLayout.css */
+
+/* Overall page structure */
+.admin-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    margin: 0;
+    background-color: #fff;
+    font-family: sans-serif;
+  }
+  
+  /* Top Header */
+  .admin-header {
+    background-color: #000;  /* black header */
+    color: #fff;            /* white text */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+  }
+  
+  .app-title {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: bold;
+  }
+  
+  .header-actions {
+    display: flex;
+    gap: 1rem;
+  }
+  
+  .header-btn {
+    background-color: #fff;
+    color: #000;
+    border: 1px solid #fff;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .header-btn:hover {
+    background-color: #FFC72C;
+    border-color: #FFC72C;
+    color: #000;
+  }
+  
+  /* Content area: sidebar + main */
+  .layout-content {
+    flex: 1;
+    display: flex;
+  }
+  
+  /* Sidebar styles */
+  .sidebar {
+    width: 220px;
+    background-color: #f4f4f4; /* light grey */
+    border-right: 1px solid #ddd;
+    padding: 1rem;
+  }
+  
+  .sidebar-title {
+    margin: 0 0 1rem;
+    font-size: 1.1rem;
+    color: #000;
+  }
+  
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .sidebar-link {
+    text-decoration: none;
+    color: #333;
+    font-weight: 500;
+    padding: 0.4rem 0.6rem;
+    border-radius: 4px;
+  }
+  .sidebar-link:hover {
+    background-color: #FFC72C;
+    color: #000;
+  }
+  .sidebar-link.active {
+    background-color: #FFC72C;
+    color: #000;
+  }
+  
+  /* Main Content */
+  .main-content {
+    flex: 1;
+    padding: 1rem;
+    overflow: auto;
+    background-color: #fff;
+    color: #000;
+  }
+  

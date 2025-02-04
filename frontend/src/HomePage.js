@@ -9,7 +9,7 @@ function HomePage() {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
 
   const goToCalendar = () => {
-    navigate('/admin/calendar');
+    navigate('/auth/login');
   };
 
   // Open the modal

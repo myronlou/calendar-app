@@ -75,8 +75,7 @@ function VerifyPage() {
       }
 
       const { token: verificationToken } = await verifyResponse.json();
-
-      // Handle different flows
+      
       if (flowType === 'registration') {
         // Registration flow
         const regResponse = await fetch(
@@ -115,6 +114,11 @@ function VerifyPage() {
             })
           }
         );
+
+        if (!loginResponse.ok) {
+          const errorData = await loginResponse.json();
+          throw new Error(errorData.error || 'Login failed');
+        }
 
         const loginData = await loginResponse.json();
         localStorage.setItem('token', loginData.token);

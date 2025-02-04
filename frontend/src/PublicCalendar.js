@@ -4,6 +4,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import listPlugin from '@fullcalendar/list';
+import './PublicCalendar.css';
 
 function PublicCalendar() {
   const navigate = useNavigate();
@@ -55,36 +56,51 @@ function PublicCalendar() {
   }
 
   return (
-    <div className="public-calendar-container">
-      <h1 className="calendar-header">Your Bookings</h1>
-      
-      <FullCalendar
-        plugins={[dayGridPlugin, timeGridPlugin, listPlugin]}
-        initialView="listMonth"
-        events={events}
-        headerToolbar={{
-          left: 'prev,next today',
-          center: 'title',
-          right: 'dayGridMonth,timeGridWeek,timeGridDay,listMonth'
-        }}
-        eventContent={({ event }) => {
-          // Use a default status if event.extendedProps.status is undefined.
-          const status = event.extendedProps.status || 'confirmed';
-          return (
-            <div className="calendar-event">
-              <div className="event-header">
-                <strong>{event.title}</strong>
-                <span className={`status-badge ${status.toLowerCase()}`}>
-                  {status}
-                </span>
+    <div className="public-calendar-page">
+      {/* TOP BANNER / HEADER */}
+      <header className="public-calendar-header">
+        <div className="header-left">
+          {/* Title or Logo */}
+          <h1 className="app-title">Your Bookings</h1>
+        </div>
+
+        <div className="header-right">
+          {/* If you want any buttons or user menu on the right side, add them here. */}
+        </div>
+      </header>
+
+      {/* MAIN CALENDAR CONTENT */}
+      <div className="public-calendar-content">
+        <FullCalendar
+          plugins={[dayGridPlugin, timeGridPlugin, listPlugin]}
+          initialView="listMonth"
+          events={events}
+          headerToolbar={{
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay,listMonth'
+          }}
+          eventContent={({ event }) => {
+            // Use a default status if event.extendedProps.status is undefined.
+            const status = event.extendedProps.status || 'confirmed';
+            return (
+              <div className="calendar-event">
+                <div className="event-header">
+                  <strong>{event.title}</strong>
+                  <span className={`status-badge ${status.toLowerCase()}`}>
+                    {status}
+                  </span>
+                </div>
+                <div className="event-time">
+                  {event.start.toLocaleDateString()} •{' '}
+                  {event.start.toLocaleTimeString()} -{' '}
+                  {event.end.toLocaleTimeString()}
+                </div>
               </div>
-              <div className="event-time">
-                {event.start.toLocaleDateString()} • {event.start.toLocaleTimeString()} - {event.end.toLocaleTimeString()}
-              </div>
-            </div>
-          );
-        }}
-      />
+            );
+          }}
+        />
+      </div>
     </div>
   );
 }

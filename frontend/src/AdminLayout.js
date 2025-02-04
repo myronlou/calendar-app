@@ -1,5 +1,6 @@
 // AdminLayout.js
 import { Outlet, Link, useLocation } from 'react-router-dom';
+import './AdminLayout.css';
 
 export default function AdminLayout() {
   const location = useLocation();
@@ -11,28 +12,38 @@ export default function AdminLayout() {
   ];
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <div style={{ width: '200px', backgroundColor: '#f0f0f0', padding: '20px' }}>
-        <h3>Admin Menu</h3>
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {menuItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              style={{
-                fontWeight: location.pathname.includes(item.path) ? 'bold' : 'normal',
-                color: location.pathname.includes(item.path) ? '#1890ff' : '#000',
-                textDecoration: 'none'
-              }}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-      </div>
-      
-      <div style={{ flex: 1, padding: '20px' }}>
-        <Outlet />
+    <div className="admin-layout">
+      {/* TOP HEADER */}
+      <header className="admin-header">
+        <h1 className="app-title">Admin Dashboard</h1>
+        <div className="header-actions">
+          {/* e.g. sign out or user menu */}
+          <button className="header-btn">Sign Out</button>
+        </div>
+      </header>
+
+      <div className="layout-content">
+        <aside className="sidebar">
+          <h3 className="sidebar-title">Admin Menu</h3>
+          <nav className="sidebar-nav">
+            {menuItems.map((item) => {
+              const isActive = location.pathname.includes(item.path);
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`sidebar-link ${isActive ? 'active' : ''}`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </aside>
+
+        <main className="main-content">
+          <Outlet />
+        </main>
       </div>
     </div>
   );

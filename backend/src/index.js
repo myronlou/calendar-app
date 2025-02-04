@@ -182,10 +182,11 @@ app.post('/auth/register', async (req, res) => {
     });
 
     // Generate auth token
+    const expiresIn = user.role === 'admin' ? '24h' : '7d';
     const authToken = jwt.sign(
       { userId: user.id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn }
     );
 
     res.json({ token: authToken, role: user.role });
@@ -211,10 +212,11 @@ app.post('/auth/login', async (req, res) => {
 
       if (!user) return res.status(404).json({ error: 'User not found' });
 
+      const expiresIn = user.role === 'admin' ? '24h' : '7d';
       const authToken = jwt.sign(
         { userId: user.id, role: user.role },
         process.env.JWT_SECRET,
-        { expiresIn: '7d' }
+        { expiresIn }
       );
 
       return res.json({ token: authToken, role: user.role });
@@ -236,10 +238,11 @@ app.post('/auth/login', async (req, res) => {
       });
     }
 
+    const expiresIn = user.role === 'admin' ? '24h' : '7d';
     const authToken = jwt.sign(
       { userId: user.id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn }
     );
 
     res.json({ token: authToken, role: user.role });
@@ -345,6 +348,10 @@ app.post('/api/events', async (req, res) => {
       return res.status(400).json({ error: 'End time must be after start time' });
     }
 
+    const existingUser = await prisma.user.findUnique({
+      where: { email: eventData.email.toLowerCase() }
+    });
+
     // Create event in database
     const event = await prisma.event.create({
       data: {
@@ -354,9 +361,17 @@ app.post('/api/events', async (req, res) => {
         fullName: eventData.fullName,
         email: eventData.email.toLowerCase(),
         phone: eventData.phone,
-        user: eventData.userId ? { connect: { id: eventData.userId } } : undefined
+        user: existingUser ? { connect: { id: existingUser.id } } : undefined
       }
     });
+
+    const now = Date.now();
+    const eventStartTime = new Date(event.start).getTime();
+    let expiresInSeconds = Math.floor((eventStartTime - now) / 1000);
+    if (expiresInSeconds <= 0) {
+      // If the event is starting soon or already started, set a minimal expiry time.
+      expiresInSeconds = 60;
+    }
 
     // Generate management token
     const managementToken = jwt.sign(
@@ -365,8 +380,8 @@ app.post('/api/events', async (req, res) => {
         eventId: event.id
       },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+      { expiresIn: expiresInSeconds }
+    );    
 
     // Send confirmation email
     await sendBookingConfirmation(
@@ -478,15 +493,16 @@ app.get('/api/admin/events', authMiddleware, adminMiddleware, async (req, res) =
   try {
     const events = await prisma.event.findMany({
       include: {
-        user: { select: { email: true } },
-        bookingType: true
+        user: { select: { email: true } }
       }
     });
     res.json(events);
   } catch (error) {
+    console.error('Error fetching admin events:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 // Update any booking
 app.put('/api/admin/events/:id', authMiddleware, adminMiddleware, async (req, res) => {

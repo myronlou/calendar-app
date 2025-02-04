@@ -4,9 +4,8 @@ import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import { DateTimePicker } from '@mui/x-date-pickers';
 import dayjs from 'dayjs';
-
-// IMPORT your loading gif here:
-import loadingGif from './gif/loading.gif'; // adjust path if needed
+import './ModalTheme.css';
+import loadingGif from './gif/loading.gif';
 
 function CreateEventModal({ show, onClose, onSubmit, formData, setFormData }) {
   // Email & time range errors
@@ -59,85 +58,68 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData }) {
   };
 
   return (
-    <div
-      style={{
-        position: 'fixed', top: 0, left: 0,
-        width: '100%', height: '100%',
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        display: 'flex', justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1000
-      }}
-      onClick={onClose}
-    >
+    <div className="modal-overlay" onClick={onClose}>
       <motion.div
-        style={{
-          background: 'white',
-          padding: '20px',
-          borderRadius: '5px',
-          minWidth: '350px',
-          position: 'relative'
-        }}
+        className="modal-content"
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.8 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3>Create Event</h3>
-        <form onSubmit={handleSubmit}>
-          <div>
+        <h3 className="modal-title">Create Event</h3>
+        
+        <form onSubmit={handleSubmit} className="modal-form">
+          <div className="form-group">
             <label>Full Name:</label>
             <input
               type="text"
-              value={formData.fullName}
+              value={formData.fullName || ''}
               required
               onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
             />
           </div>
 
-          <div>
+          <div className="form-group">
             <label>Email:</label>
             <input
               type="email"
-              value={formData.email}
+              value={formData.email || ''}
               required
               onChange={(e) => {
                 setFormData({ ...formData, email: e.target.value });
                 validateEmail(e.target.value);
               }}
             />
-            {emailError && <p style={{ color: 'red' }}>{emailError}</p>}
+            {emailError && <p className="error-text">{emailError}</p>}
           </div>
 
-          <div>
+          <div className="form-group">
             <label>Phone:</label>
             <PhoneInput
-              country={'hk'}
-              value={formData.phone}
+              country="hk"
+              value={formData.phone || ''}
               onChange={(phone, country) =>
                 setFormData({
                   ...formData,
-                  phone: `+${country.dialCode} ${phone
-                    .replace(country.dialCode, '')
-                    .trim()}`
+                  phone: `+${country.dialCode} ${phone.replace(country.dialCode, '').trim()}`
                 })
               }
               priority={{ tw: 1, hk: 2 }}
-              enableSearch={true}
+              enableSearch
             />
           </div>
 
-          <div>
+          <div className="form-group">
             <label>Title:</label>
             <input
               type="text"
-              value={formData.title}
+              value={formData.title || ''}
               required
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
             />
           </div>
 
-          <div>
+          <div className="form-group">
             <label>Start Time:</label>
             <DateTimePicker
               label="Pick Start"
@@ -147,7 +129,6 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData }) {
                   setFormData({ ...formData, start: '' });
                   return;
                 }
-                // Check conflict if end time already set
                 const endVal = dayjs(formData.end);
                 if (endVal.isValid() && newVal.isAfter(endVal)) {
                   setEndTimeError('Start time cannot be after end time');
@@ -159,7 +140,7 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData }) {
             />
           </div>
 
-          <div>
+          <div className="form-group">
             <label>End Time:</label>
             <DateTimePicker
               label="Pick End"
@@ -178,23 +159,30 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData }) {
                 }
               }}
             />
-            {endTimeError && <p style={{ color: 'red' }}>{endTimeError}</p>}
+            {endTimeError && <p className="error-text">{endTimeError}</p>}
           </div>
 
-          <button type="submit" disabled={loading || !isFormValid}>
-            {loading ? (
-              <img src={loadingGif} alt="Loading..." style={{ width: '20px', height: '20px' }}/>
-            ) : (
-              'Create Event'
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={loading}
-          >
-            Cancel
-          </button>
+          <div className="modal-buttons">
+            <button
+              type="submit"
+              className="primary-button"
+              disabled={loading || !isFormValid}
+            >
+              {loading ? (
+                <img src={loadingGif} alt="Loading..." className="loading-icon" />
+              ) : (
+                'Create Event'
+              )}
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={onClose}
+              disabled={loading}
+            >
+              Cancel
+            </button>
+          </div>
         </form>
       </motion.div>
     </div>

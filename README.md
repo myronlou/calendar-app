@@ -1,70 +1,106 @@
-# Getting Started with Create React App
+# Calendar App
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A full-stack Calendar App that allows users to view and manage their events.
 
-## Available Scripts
+## Table of Contents
 
-In the project directory, you can run:
+- [About](#about)
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+  - [Clone the Repository](#clone-the-repository)
+  - [Frontend Setup](#frontend-setup)
+  - [Backend Setup](#backend-setup)
+- [Deployment](#deployment)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
 
-### `npm start`
+## About
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+This project is a Calendar App that lets users manage their schedules. The frontend is built with React (bootstrapped using [Create React App](https://github.com/facebook/create-react-app)), and the backend (if applicable) is built using Node.js and Express.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Features
 
-### `npm test`
+- View calendar events
+- Add, edit, and delete events
+- Responsive design
+- Integration with backend API for persistent storage
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Prerequisites
 
-### `npm run build`
+- [Node.js](https://nodejs.org) (v14.x or later recommended)
+- [npm](https://www.npmjs.com) (comes with Node.js)
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Installation
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### Clone the Repository
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Clone the repository to your local machine using Git:
 
-### `npm run eject`
+```bash
+git clone https://github.com/myronlou/calendar-app.git
+cd calendar-app
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## Frontend Setup
+1. Navigate to the frontend folder:
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+```bash
+cd frontend
+```
+Install the dependencies:
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+```bash
+npm install
+Start the development server:
+```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+```bash
+npm start
+```
+The app will run in development mode and can be accessed at http://localhost:3000.
 
-## Learn More
+## Backend Setup
+If your project includes a backend API (for example, built with Express):
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+Open a new terminal window/tab and navigate to the backend folder:
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+```bash
+cd backend
+```
+Install the backend dependencies:
 
-### Code Splitting
+```bash
+npm install
+```
+Start the backend server:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+```bash
+npm start
+```
+Ensure that the backend server’s port matches the configuration expected by the frontend, default is http://localhost:5001. (If needed, adjust the API endpoint URLs in your frontend code accordingly.)
 
-### Analyzing the Bundle Size
+## Deployment
+Frontend
+To deploy the frontend:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+Build the app for production:
 
-### Making a Progressive Web App
+```bash
+npm run build
+```
+Deploy the contents of the build folder to your static hosting service.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## Troubleshooting
+Development Server Not Starting:
+Ensure that you have installed all dependencies using npm install. Check if another process is using the default port (3000 for frontend).
 
-### Advanced Configuration
+## API Connection Issues:
+Verify that the backend server is running and that the API endpoints in your frontend code are correctly configured.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+## Contributing
+Contributions are welcome! Please open an issue or submit a pull request with improvements or bug fixes.
 
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## License
+This project is licensed under the MIT License. See the LICENSE file for details.

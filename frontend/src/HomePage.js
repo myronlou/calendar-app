@@ -28,7 +28,7 @@ function HomePage() {
       <p>This is our public info page. Learn more about our awesome services here!</p>
 
       <button onClick={goToCalendar}>
-        Go to Calendar (Admin)
+        Go to Calendar
       </button>
 
       {/* Button to open modal */}

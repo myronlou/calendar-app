@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
+import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import CreateEventModal from './CreateEventModal';
 import EditEventModal from './EditEventModal';
@@ -165,15 +166,15 @@ function Calendar() {
     <div className="admin-calendar">
       <h2>Admin Calendar</h2>
       <FullCalendar
-        plugins={[dayGridPlugin, interactionPlugin]}
+        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
         events={events}
         dateClick={handleDateClick}
         eventClick={handleEventClick}
         headerToolbar={{
-          start: 'prev,next today',
-          center: 'title',
-          end: 'dayGridMonth,dayGridWeek,dayGridDay'
+          left: 'title',
+          center: 'dayGridMonth,timeGridWeek,dayGridDay',
+          right: 'prev today next'
         }}
       />
 

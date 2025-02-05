@@ -72,7 +72,7 @@ const sendBookingConfirmation = async (toEmail, eventTitle, managementToken) => 
     `;
 
     const mailOptions = {
-        from: `"Rideawave" <noreply@keketec.com>`,
+        from: `"Booking System" <noreply@keketec.com>`,
         to: toEmail,
         subject: `Your Event "${eventTitle}" is Confirmed!`,
         text: `Your event "${eventTitle}" has been confirmed. Edit link: ${calendarLink}`,
@@ -84,7 +84,7 @@ const sendBookingConfirmation = async (toEmail, eventTitle, managementToken) => 
 
 const sendBookingUpdate = async (toEmail, eventTitle) => {
     const mailOptions = {
-        from: `"Rideawave" <noreply@keketec.com>` ,
+        from: `"Booking System" <noreply@keketec.com>`,
         to: toEmail,
         subject: `Your Event "${eventTitle}" Has Been Updated`,
         text: `Your event "${eventTitle}" has been updated. Please check for details.`,
@@ -96,7 +96,7 @@ const sendBookingUpdate = async (toEmail, eventTitle) => {
 // 📩 Booking Cancellation Email
 const sendBookingCancellation = async (toEmail, eventTitle) => {
     const mailOptions = {
-        from: `"Rideawave" <noreply@keketec.com>`,
+        from: `"Booking System" <noreply@keketec.com>`,
         to: toEmail,
         subject: `Your Event "${eventTitle}" Has Been Cancelled`,
         text: `Dear User,\n\nWe regret to inform you that your event "${eventTitle}" has been cancelled. If this was a mistake or if you need assistance, please contact support.\n\nBest Regards,\nRideawave Team`,
@@ -109,7 +109,7 @@ const sendBookingCancellation = async (toEmail, eventTitle) => {
 // 📩 Event Reminder Email (Sent 24 hours before the event)
 const sendEventReminder = async (toEmail, eventTitle, eventStart) => {
     const mailOptions = {
-        from: `"Rideawave" <noreply@keketec.com>`,
+        from: `"Booking System" <noreply@keketec.com>`,
         to: toEmail,
         subject: `Reminder: Your Event "${eventTitle}" is Tomorrow`,
         text: `This is a friendly reminder that your event "${eventTitle}" is scheduled for ${eventStart}.`,
@@ -122,7 +122,7 @@ const sendEventReminder = async (toEmail, eventTitle, eventStart) => {
 // 📩 Admin Notification for New Booking
 const sendAdminNotification = async (adminEmail, eventTitle, customerEmail) => {
     const mailOptions = {
-        from: `"Rideawave" <noreply@keketec.com>`,
+        from: `"Booking System" <noreply@keketec.com>`,
         to: adminEmail,
         subject: `New Event Booking: "${eventTitle}"`,
         text: `A new event "${eventTitle}" has been booked by ${customerEmail}.`,

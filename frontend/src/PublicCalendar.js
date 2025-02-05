@@ -63,9 +63,15 @@ function PublicCalendar() {
           {/* Title or Logo */}
           <h1 className="app-title">Your Bookings</h1>
         </div>
-
         <div className="header-right">
-          {/* If you want any buttons or user menu on the right side, add them here. */}
+            <button
+              className="logout-button"
+              onClick={() => {
+                localStorage.removeItem('token');
+                navigate('/');
+              }}>
+                Log out
+            </button>
         </div>
       </header>
 
@@ -73,29 +79,23 @@ function PublicCalendar() {
       <div className="public-calendar-content">
         <FullCalendar
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin]}
-          initialView="listMonth"
+          initialView="dayGridMonth"
           events={events}
+          // Reconfigure the toolbar for the iCloud-style layout:
           headerToolbar={{
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay,listMonth'
+            left: 'title',
+            center: 'dayGridMonth,timeGridWeek,dayGridDay',
+            right: 'prev today next'
           }}
+          // Force events to fit better (wrapping text if needed)
           eventContent={({ event }) => {
-            // Use a default status if event.extendedProps.status is undefined.
-            const status = event.extendedProps.status || 'confirmed';
             return (
               <div className="calendar-event">
-                <div className="event-header">
-                  <strong>{event.title}</strong>
-                  <span className={`status-badge ${status.toLowerCase()}`}>
-                    {status}
-                  </span>
-                </div>
-                <div className="event-time">
-                  {event.start.toLocaleDateString()} •{' '}
-                  {event.start.toLocaleTimeString()} -{' '}
-                  {event.end.toLocaleTimeString()}
-                </div>
+                <span className="event-title">{event.title}</span>
+                <span className="event-time">
+                  {event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {event.end && ' - ' + event.end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
               </div>
             );
           }}

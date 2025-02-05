@@ -112,7 +112,7 @@ Open the .env file and update the following variables as needed:
 
 - JWT_SECRET
     A secret key used to sign JSON Web Tokens (JWT). Choose a strong, unpredictable string. You can generate with this command 
-    `openssl rand -base64 64`
+    **`openssl rand -base64 64`**
     Example:
     ```plaintext
     JWT_SECRET="your-very-strong-secret-key"

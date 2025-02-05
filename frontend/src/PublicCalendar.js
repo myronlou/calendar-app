@@ -62,7 +62,7 @@ function PublicCalendar() {
         <div className="header-left">
           {/* Title or Logo */}
           <h1 className="app-title">Your Bookings</h1>
-        </div>
+        </div> 
         <div className="header-right">
             <button
               className="logout-button"
@@ -81,13 +81,12 @@ function PublicCalendar() {
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin]}
           initialView="dayGridMonth"
           events={events}
-          // Reconfigure the toolbar for the iCloud-style layout:
           headerToolbar={{
             left: 'title',
             center: 'dayGridMonth,timeGridWeek,dayGridDay',
             right: 'prev today next'
           }}
-          // Force events to fit better (wrapping text if needed)
+          allDaySlot={false} 
           eventContent={({ event }) => {
             return (
               <div className="calendar-event">

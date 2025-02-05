@@ -320,7 +320,7 @@ app.post('/api/events', async (req, res) => {
     }
 
     // Validate required fields
-    const requiredFields = ['title', 'start', 'end', 'fullName', 'email', 'phone'];
+    const requiredFields = ['start', 'fullName', 'email', 'phone'];
     
     const missingFields = requiredFields.filter(field => !eventData[field]);
     if (missingFields.length > 0) {
@@ -341,11 +341,23 @@ app.post('/api/events', async (req, res) => {
       return res.status(400).json({ error: 'Invalid phone number format' });
     }
 
-    // Validate date consistency
     const startDate = new Date(eventData.start);
-    const endDate = new Date(eventData.end);
-    if (startDate >= endDate) {
-      return res.status(400).json({ error: 'End time must be after start time' });
+    let endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Default to 60 minutes if no booking type provided
+    let title;
+
+    // Use bookingTypeId to override title and duration if provided
+    if (eventData.bookingTypeId) {
+      const bookingType = await prisma.bookingType.findUnique({
+        where: { id: parseInt(eventData.bookingTypeId) }
+      });
+      if (!bookingType) {
+        return res.status(400).json({ error: 'Invalid booking type' });
+      }
+      title = bookingType.name; // Use the booking type's official name
+      endDate = new Date(startDate.getTime() + bookingType.duration * 60 * 1000);
+    } else {
+      // Optionally, reject the request if no booking type is provided.
+      return res.status(400).json({ error: 'Booking type is required' });
     }
 
     const existingUser = await prisma.user.findUnique({
@@ -355,7 +367,7 @@ app.post('/api/events', async (req, res) => {
     // Create event in database
     const event = await prisma.event.create({
       data: {
-        title: eventData.title,
+        title: title,
         start: startDate,
         end: endDate,
         fullName: eventData.fullName,
@@ -487,6 +499,18 @@ app.put('/api/events/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// Public booking types endpoint
+app.get('/api/booking-types', async (req, res) => {
+  try {
+    const types = await prisma.bookingType.findMany();
+    res.json(types);
+  } catch (error) {
+    console.error('Error fetching booking types:', error);
+    res.status(500).json({ error: 'Failed to fetch booking types' });
+  }
+});
+
+
 // -------------------- ADMIN ROUTES --------------------
 // Get all bookings
 app.get('/api/admin/events', authMiddleware, adminMiddleware, async (req, res) => {
@@ -554,19 +578,67 @@ app.delete('/api/admin/events/:id', authMiddleware, adminMiddleware, async (req,
 });
 
 // Booking Types Management
-app.get('/api/admin/booking-types', authMiddleware, adminMiddleware, async (req, res) => {
-  const types = await prisma.bookingType.findMany();
-  res.json(types);
+app.post('/api/admin/booking-types', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { name, duration, description, color } = req.body;
+    const newType = await prisma.bookingType.create({
+      data: {
+        name,
+        duration,
+        description,      
+        color             
+      }
+    });
+    res.json(newType);
+  } catch (error) {
+    console.error('Error creating booking type:', error);
+    res.status(500).json({ error: 'Failed to create booking type' });
+  }
 });
 
-app.post('/api/admin/booking-types', authMiddleware, adminMiddleware, async (req, res) => {
-  const newType = await prisma.bookingType.create({
-    data: {
-      name: req.body.name,
-      duration: req.body.duration
+// UPDATE booking type
+app.put('/api/admin/booking-types/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid bookingType ID' });
     }
-  });
-  res.json(newType);
+
+    // Pull updated fields off req.body
+    const { name, duration, description, color } = req.body;
+
+    const updated = await prisma.bookingType.update({
+      where: { id },
+      data: {
+        name,
+        duration,
+        description,
+        color
+      }
+    });
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating booking type:', error);
+    res.status(500).json({ error: 'Failed to update booking type' });
+  }
+});
+
+// DELETE booking type
+app.delete('/api/admin/booking-types/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid bookingType ID' });
+    }
+
+    await prisma.bookingType.delete({
+      where: { id }
+    });
+    res.json({ success: true, message: 'Booking type deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting booking type:', error);
+    res.status(500).json({ error: 'Failed to delete booking type' });
+  }
 });
 
 // Availability Management

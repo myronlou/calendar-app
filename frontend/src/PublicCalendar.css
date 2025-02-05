@@ -209,6 +209,7 @@
 .fc-daygrid-day-frame,
 .fc-timegrid-col {
   border: 1px solid #e5e5ea;
+  height: 160px;
 }
 .fc-day-sat,
 .fc-day-sun {
@@ -248,7 +249,8 @@
 ---------------------------- */
 /* Constrain the event container height in each day cell and enable scrolling */
 .fc-daygrid-day-events {
-  height: 160px;    /* Set a fixed height (adjust as needed) */
+  height: 80%; 
+  max-height: 100%;  
   overflow-y: auto;    /* Enable vertical scrolling when events exceed this height */
   overflow-x: hidden;  /* Prevent horizontal scrolling */
   box-sizing: border-box;

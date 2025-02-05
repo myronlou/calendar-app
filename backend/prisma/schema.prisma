@@ -57,9 +57,11 @@ model OTP {
 }
 
 model BookingType {
-  id       Int    @id @default(autoincrement())
-  name     String
-  duration Int
+  id          Int    @id @default(autoincrement())
+  name        String
+  duration    Int
+  description String? @db.Text
+  color       String?   
 }
 
 model Availability {

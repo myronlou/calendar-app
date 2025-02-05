@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import loadingGif from './gif/loading.gif';
@@ -14,7 +14,6 @@ function CustomerBookingModal({ isOpen, onClose }) {
     fullName: '',
     email: '',
     phone: '',
-    title: '',
     date: '',
     time: '',
   });
@@ -23,6 +22,25 @@ function CustomerBookingModal({ isOpen, onClose }) {
   const [errorMessage, setErrorMessage] = useState('');
   const [animationDirection, setAnimationDirection] = useState('next');
   const [isRegenerating, setIsRegenerating] = useState(false);
+  
+  // New state for booking types
+  const [bookingTypes, setBookingTypes] = useState([]);
+  const [selectedType, setSelectedType] = useState('');
+
+  // Fetch available booking types on mount
+  useEffect(() => {
+    const fetchBookingTypes = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/booking-types`);
+        if (!res.ok) throw new Error('Failed to fetch booking types');
+        const types = await res.json();
+        setBookingTypes(types);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    fetchBookingTypes();
+  }, []);
 
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -60,7 +78,6 @@ function CustomerBookingModal({ isOpen, onClose }) {
       fullName: '',
       email: '',
       phone: '',
-      title: '',
       date: '',
       time: '',
     });
@@ -71,12 +88,12 @@ function CustomerBookingModal({ isOpen, onClose }) {
   };
 
   const isStep1Valid = () => {
-    const { fullName, email, phone, title } = formData;
+    const { fullName, email, phone } = formData;
     return (
       fullName.trim() &&
       email.trim() &&
       phone.trim() &&
-      title.trim() &&
+      selectedType && // booking type must be selected
       !emailError
     );
   };
@@ -101,7 +118,6 @@ function CustomerBookingModal({ isOpen, onClose }) {
           setErrorMessage('Please select both date and time');
           return;
         }
-
         // Generate booking OTP
         const otpResponse = await fetch(`${API_URL}/api/otp/generate`, {
           method: 'POST',
@@ -140,21 +156,25 @@ function CustomerBookingModal({ isOpen, onClose }) {
 
         const { token } = await verifyResponse.json();
 
-        // Create event after successful OTP verification
+        // Create event after OTP verification
         const startISO = new Date(`${formData.date}T${formData.time}:00`).toISOString();
-        const endISO = new Date(new Date(startISO).getTime() + 3600000).toISOString();
+
+        const eventPayload = {
+          eventData: {
+            ...formData,
+            // Omit formData.title if it exists
+            bookingTypeId: selectedType, // send the booking type identifier
+            start: startISO,
+            // "end" can be optionally computed on the client for display purposes,
+            // but will be overridden on the server.
+          },
+          token: token
+        };
 
         const eventResponse = await fetch(`${API_URL}/api/events`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            eventData: {
-              ...formData,
-              start: startISO,
-              end: endISO,
-            },
-            token: token
-          }),
+          body: JSON.stringify(eventPayload),
         });
 
         if (!eventResponse.ok) {
@@ -247,15 +267,19 @@ function CustomerBookingModal({ isOpen, onClose }) {
               </div>
 
               <div className="input-group">
-                <label>Title:</label>
-                <input
-                  type="text"
-                  value={formData.title}
+                <label>Select Booking Type:</label>
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
                   required
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="e.g. Consultation"
-                  onKeyDown={handleKeyPress}
-                />
+                >
+                  <option value="">-- Select a Booking Type --</option>
+                  {bookingTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name} ({type.duration} mins)
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           )}
@@ -283,7 +307,9 @@ function CustomerBookingModal({ isOpen, onClose }) {
                   onKeyDown={handleKeyPress}
                 />
               </div>
-              <p className="duration-note">* Appointments are scheduled for 1 hour duration</p>
+              <p className="duration-note">
+                * Appointment duration is determined by the selected booking type
+              </p>
             </div>
           )}
 

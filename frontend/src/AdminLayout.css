@@ -1,102 +1,98 @@
-/* AdminLayout.css */
-
-/* Overall page structure */
+/* Basic layout reset */
 .admin-layout {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    margin: 0;
-    background-color: #fff;
-    font-family: sans-serif;
-  }
-  
-  /* Top Header */
-  .admin-header {
-    background-color: #f7f7f7;
-    color: #1d1d1f;            
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.4rem 1rem;
-    border-bottom: 1px;
-  }
-  
-  .app-title {
-    margin: 0;
-    font-size: 1.2rem;
-    font-weight: bold;
-  }
-  
-  .header-actions {
-    display: flex;
-    gap: 1rem;
-  }
-  
-  .header-btn {
-    background-color: #fff;
-    color: #000;
-    border: 1px solid #fff;
-    padding: 0.2rem 0.7rem;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-  .header-btn:hover {
-    background-color: #FFC72C;
-    border-color: #FFC72C;
-    color: #000;
-  }
-  
-  /* Content area: sidebar + main */
-  .layout-content {
-    flex: 1;
-    display: flex;
-  }
-  
-  /* Sidebar styles */
-  .sidebar {
-    width: 220px;
-    background-color: #f4f4f4; /* light grey */
-    border-right: 1px solid #ddd;
-    padding: 1rem;
-  }
-  
-  .sidebar-title {
-    margin: 0 0 1rem;
-    font-size: 1.1rem;
-    color: #000;
-  }
-  
-  .sidebar-nav {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-  
-  .sidebar-link {
-    text-decoration: none;
-    color: #333;
-    font-weight: 500;
-    padding: 0.4rem 0.6rem;
-    border-radius: 4px;
-  }
-  .sidebar-link:hover {
-    background-color: #FFC72C;
-    color: #000;
-  }
-  .sidebar-link.active {
-    background-color: #FFC72C;
-    color: #000;
-  }
-  
-  /* Main Content */
-  .main-content {
-    flex: 1;
-    padding: 1rem;
-    overflow: auto;
-    background-color: #fff;
-    color: #000;
-  }
-  
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  margin: 0;
+  background-color: #fff;
+  font-family: sans-serif;
+}
+
+/* Sidebar open/closed widths */
+.sidebar {
+  background-color: #f4f4f4; /* light grey */
+  border-right: 1px solid #ddd;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.3s ease;
+  overflow: hidden;
+}
+
+.sidebar-open .sidebar {
+  width: 220px;
+}
+
+.sidebar-closed .sidebar {
+  width: 60px;
+}
+
+/* Top section (toggle button) */
+.sidebar-top {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem;
+}
+
+.sidebar-toggle {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+/* Navigation links */
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem;
+  flex: 1;
+  gap: 0.5rem;
+}
+
+.sidebar-link {
+  text-decoration: none;
+  color: #333;
+  font-weight: 500;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  display: block;
+}
+.sidebar-link:hover {
+  background-color: #dadada;
+  color: #000;
+}
+.sidebar-link.active {
+  background-color: #dadada;
+  color: #000;
+}
+
+/* Bottom section (logout button) */
+.sidebar-bottom {
+  padding: 0.5rem;
+  border-top: 1px solid #ddd;
+  display: flex;
+  justify-content: center;
+}
+
+.logout-button {
+  background-color: #fff;
+  color: #000;
+  border: 1px solid #fff;
+  padding: 0.4rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.logout-button:hover {
+  background-color: #ffc72c;
+  border-color: #ffc72c;
+  color: #000;
+}
+
+/* Main Content */
+.main-content {
+  flex: 1;
+  padding: 1rem;
+  overflow: auto;
+  background-color: #fff;
+  color: #000;
+}

@@ -197,11 +197,9 @@ function BookingTypesAdmin() {
             <div className="type-info">
               <div className="type-name">
                 {type.name}
-                {type.description && (
-                  <span className="type-description"> / {type.duration || 0}m</span>
-                )}
+                <span className="type-meta"> / {type.duration || 0}m</span>
               </div>
-              <div className="type-meta">
+              <div className="type-description">
                 {type.description}
               </div>
             </div>

@@ -92,13 +92,13 @@
     font-weight: 600;
     font-size: 1rem;
   }
-  .type-description {
+  .type-meta {
     color: #999;
     font-weight: normal;
     margin-left: 0.3rem;
     font-size: 0.9rem;
   }
-  .type-meta {
+  .type-description {
     margin-top: 0.3rem;
     color: #666;
     display: flex;

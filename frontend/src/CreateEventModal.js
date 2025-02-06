@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
@@ -7,41 +7,57 @@ import dayjs from 'dayjs';
 import './ModalTheme.css';
 import loadingGif from './gif/loading.gif';
 
-function CreateEventModal({ show, onClose, onSubmit, formData, setFormData }) {
-  // Email & time range errors
-  const [emailError, setEmailError] = useState('');
+function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, currentUserEmail }) {
   const [endTimeError, setEndTimeError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // State to hold available booking types
+  const [bookingTypes, setBookingTypes] = useState([]);
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
+  useEffect(() => {
+    // Fetch available booking types from the backend
+    const fetchBookingTypes = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/booking-types`);
+        if (res.ok) {
+          const data = await res.json();
+          setBookingTypes(data);
+        } else {
+          console.error('Failed to fetch booking types');
+        }
+      } catch (err) {
+        console.error('Error fetching booking types:', err);
+      }
+    };
+    fetchBookingTypes();
+  }, [API_URL]);
+
+  // Automatically set the email from the current user (if not already set)
+  useEffect(() => {
+    if (currentUserEmail && formData.email !== currentUserEmail) {
+      setFormData({ ...formData, email: currentUserEmail });
+    }
+  }, [currentUserEmail, formData, setFormData]);
+
   if (!show) return null;
 
-  // Validate email on change
-  const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    setEmailError(emailRegex.test(email) ? '' : 'Invalid email format');
-  };
-
-  // Check if the form is valid overall:
-  // - no email error
-  // - no endTimeError
-  // - has valid start & end
+  // Overall form validation:
+  // - Valid start & end times and proper order.
+  // - A booking type is selected.
   const isFormValid = (() => {
-    if (emailError) return false;
-    if (endTimeError) return false;
-
     const startVal = formData.start ? dayjs(formData.start) : null;
     const endVal = formData.end ? dayjs(formData.end) : null;
     if (!startVal || !endVal) return false;
     if (!startVal.isValid() || !endVal.isValid()) return false;
     if (endVal.isBefore(startVal)) return false;
-
+    if (!formData.bookingTypeId) return false;
     return true;
   })();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (loading) return;
-    // Also disallow if invalid:
     if (!isFormValid) return;
 
     setLoading(true);
@@ -75,22 +91,21 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData }) {
               type="text"
               value={formData.fullName || ''}
               required
-              onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, fullName: e.target.value })
+              }
             />
           </div>
 
           <div className="form-group">
             <label>Email:</label>
+            {/* Display the current user’s email without allowing changes */}
             <input
               type="email"
-              value={formData.email || ''}
-              required
-              onChange={(e) => {
-                setFormData({ ...formData, email: e.target.value });
-                validateEmail(e.target.value);
-              }}
+              value={currentUserEmail}
+              readOnly
+              style={{ backgroundColor: '#eee', cursor: 'not-allowed' }}
             />
-            {emailError && <p className="error-text">{emailError}</p>}
           </div>
 
           <div className="form-group">
@@ -110,13 +125,29 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData }) {
           </div>
 
           <div className="form-group">
-            <label>Title:</label>
-            <input
-              type="text"
-              value={formData.title || ''}
+            <label>Booking Type:</label>
+            <select
+              value={formData.bookingTypeId || ''}
               required
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            />
+              onChange={(e) => {
+                const selectedId = e.target.value;
+                setFormData({ ...formData, bookingTypeId: selectedId });
+                // Automatically set the event title to the booking type's name
+                const selectedType = bookingTypes.find(
+                  (type) => String(type.id) === selectedId
+                );
+                if (selectedType) {
+                  setFormData((prev) => ({ ...prev, title: selectedType.name }));
+                }
+              }}
+            >
+              <option value="">Select Booking Type</option>
+              {bookingTypes.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="form-group">

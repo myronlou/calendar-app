@@ -314,13 +314,29 @@ app.post('/api/events', async (req, res) => {
       return res.status(401).json({ error: 'Invalid or expired verification token' });
     }
 
-    // Validate token claims
-    if (!decoded.verified || decoded.type !== 'booking' || !decoded.email) {
-      return res.status(401).json({ error: 'Invalid token claims' });
+    let emailToUse;
+    if (decoded.userId) {
+      // Authenticated user flow
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId }
+      });
+      if (!user) {
+        return res.status(404).json({ error: 'Authenticated user not found' });
+      }
+      emailToUse = user.email.toLowerCase();
+    } else {
+      // OTP token flow
+      if (!decoded.verified || decoded.type !== 'booking' || !decoded.email) {
+        return res.status(401).json({ error: 'Invalid token claims' });
+      }
+      if (eventData.email.toLowerCase() !== decoded.email.toLowerCase()) {
+        return res.status(401).json({ error: 'Email mismatch' });
+      }
+      emailToUse = eventData.email.toLowerCase();
     }
 
     // Validate required fields
-    const requiredFields = ['start', 'fullName', 'email', 'phone'];
+    const requiredFields = ['start', 'fullName', 'email', 'phone', 'bookingTypeId'];
     
     const missingFields = requiredFields.filter(field => !eventData[field]);
     if (missingFields.length > 0) {
@@ -342,36 +358,30 @@ app.post('/api/events', async (req, res) => {
     }
 
     const startDate = new Date(eventData.start);
-    let endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Default to 60 minutes if no booking type provided
-    let title;
 
-    // Use bookingTypeId to override title and duration if provided
-    if (eventData.bookingTypeId) {
-      const bookingType = await prisma.bookingType.findUnique({
-        where: { id: parseInt(eventData.bookingTypeId) }
-      });
-      if (!bookingType) {
-        return res.status(400).json({ error: 'Invalid booking type' });
-      }
-      title = bookingType.name; // Use the booking type's official name
-      endDate = new Date(startDate.getTime() + bookingType.duration * 60 * 1000);
-    } else {
-      // Optionally, reject the request if no booking type is provided.
-      return res.status(400).json({ error: 'Booking type is required' });
+    // Use bookingTypeId to determine event title and duration
+    const bookingType = await prisma.bookingType.findUnique({
+      where: { id: parseInt(eventData.bookingTypeId) }
+    });
+    if (!bookingType) {
+      return res.status(400).json({ error: 'Invalid booking type' });
     }
+    // Compute the event's end time based on the booking type's duration.
+    const endDate = new Date(startDate.getTime() + bookingType.duration * 60 * 1000);
 
+    // Check if a user with emailToUse exists (for linking purposes)
     const existingUser = await prisma.user.findUnique({
-      where: { email: eventData.email.toLowerCase() }
+      where: { email: emailToUse }
     });
 
     // Create event in database
     const event = await prisma.event.create({
       data: {
-        title: title,
+        bookingTypeId: bookingType.id,
         start: startDate,
         end: endDate,
         fullName: eventData.fullName,
-        email: eventData.email.toLowerCase(),
+        email: emailToUse,
         phone: eventData.phone,
         user: existingUser ? { connect: { id: existingUser.id } } : undefined
       }
@@ -495,6 +505,36 @@ app.put('/api/events/:id', authMiddleware, async (req, res) => {
     await sendBookingUpdate(event.email, event.title);
     res.json(updatedEvent);
   } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/events/:id', authMiddleware, async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    if (isNaN(eventId)) {
+      return res.status(400).json({ error: 'Invalid event ID' });
+    }
+    
+    const event = await prisma.event.findUnique({
+      where: { id: eventId }
+    });
+    
+    // Ensure the event exists and belongs to the requesting user
+    if (!event || event.userId !== req.user.userId) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    
+    await prisma.event.delete({
+      where: { id: eventId }
+    });
+    
+    // Optionally, send a cancellation email:
+    await sendBookingCancellation(event.email, event.title);
+    
+    res.json({ success: true, message: 'Event deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting event:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

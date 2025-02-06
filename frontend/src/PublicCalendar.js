@@ -4,13 +4,26 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import listPlugin from '@fullcalendar/list';
+import EditEventModal from './EditEventModal';
+import CreateEventModal from './CreateEventModal';
 import './PublicCalendar.css';
 
 function PublicCalendar() {
   const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createFormData, setCreateFormData] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    start: '',
+    bookingTypeId: ''
+  });
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFormData, setEditFormData] = useState({});
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+  const currentUserEmail = localStorage.getItem('userEmail') || '';
 
   useEffect(() => {
     const fetchData = async () => {
@@ -36,6 +49,12 @@ function PublicCalendar() {
         }
 
         const eventsData = await eventsRes.json();
+        const formattedEvents = eventsData.map(event => ({
+          ...event,
+          start: new Date(event.start),
+          end: new Date(event.end)
+        }));
+
         setEvents(eventsData);
         setLoading(false);
       } catch (error) {
@@ -45,6 +64,128 @@ function PublicCalendar() {
     };
     fetchData();
   }, [navigate, API_URL]);
+
+  // Handler for creating a new event
+  const handleCreate = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch(`${API_URL}/api/events`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          eventData: createFormData,
+          token: token
+        })
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        // Option 1: Append the new event to the list
+        const newEvent = {
+          id: data.event.id,
+          bookingTypeId: data.event.bookingTypeId,
+          start: new Date(data.event.start),
+          end: new Date(data.event.end)
+          // Other details like fullName, phone can be added if needed
+        };
+        setEvents([...events, newEvent]);
+        return data;
+      } else {
+        console.error('Creation error:', data);
+        return { error: data.error };
+      }
+    } catch (error) {
+      console.error('Error creating event:', error);
+      return { error: error.message };
+    }
+  };
+
+  // Handler for when an event is clicked to open the edit modal.
+  const handleEventClick = (clickInfo) => {
+    const clickedEvent = clickInfo.event;
+    // Prepare form data for editing. We use extendedProps for custom fields.
+    setEditFormData({
+      id: clickedEvent.id,
+      bookingTypeId: clickedEvent.extendedProps.bookingTypeId,
+      fullName: clickedEvent.extendedProps.fullName,
+      phone: clickedEvent.extendedProps.phone,
+      start: clickedEvent.start.toISOString(),
+      email: currentUserEmail // Email is not editable.
+    });
+    setShowEditModal(true);
+  };
+
+  // Handler for updating an event
+  const handleUpdate = async (updatedFormData) => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch(`${API_URL}/api/events/${updatedFormData.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          fullName: updatedFormData.fullName,
+          phone: updatedFormData.phone,
+          bookingTypeId: updatedFormData.bookingTypeId,
+          start: updatedFormData.start
+          // The backend will compute the end time based on the booking type's duration.
+        })
+      });
+      if (response.ok) {
+        const updatedEvent = await response.json();
+        setEvents(events.map(e => e.id === updatedEvent.id ? {
+          ...updatedEvent,
+          start: new Date(updatedEvent.start),
+          end: new Date(updatedEvent.end)
+        } : e));
+        return updatedEvent;
+      } else {
+        const errorData = await response.json();
+        console.error('Update failed:', errorData);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error updating event:', error);
+      return null;
+    }
+  };
+
+  // Handler for deleting an event
+  const handleDelete = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch(`${API_URL}/api/events/${editFormData.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        setEvents(events.filter(e => e.id !== editFormData.id));
+        return true;
+      } else {
+        const errorData = await response.json();
+        console.error('Delete failed:', errorData);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      return false;
+    }
+  };
+
+  // Handler for when a date/time slot is selected to create a new booking.
+  const handleDateSelect = (selectInfo) => {
+    // Update the create form data with the selected start time.
+    setCreateFormData({
+      ...createFormData,
+      start: selectInfo.start.toISOString()
+    });
+    setShowCreateModal(true);
+  };
 
   if (loading) {
     return (
@@ -80,26 +221,46 @@ function PublicCalendar() {
         <FullCalendar
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin]}
           initialView="dayGridMonth"
-          events={events}
+          selectable={true}
+          select={handleDateSelect}
+          events={events.map(event => ({
+            id: event.id,
+            title: event.bookingType && event.bookingType.name ? event.bookingType.name : 'Booking',
+            start: event.start,
+            end: event.end,
+            extendedProps: {
+              fullName: event.fullName,
+              phone: event.phone,
+              bookingTypeId: event.bookingTypeId
+            }
+          }))}
           headerToolbar={{
             left: 'title',
             center: 'dayGridMonth,timeGridWeek,dayGridDay',
             right: 'prev today next'
           }}
-          allDaySlot={false} 
-          eventContent={({ event }) => {
-            return (
-              <div className="calendar-event">
-                <span className="event-title">{event.title}</span>
-                <span className="event-time">
-                  {event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  {event.end && ' - ' + event.end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-            );
-          }}
+          allDaySlot={false}
+          eventClick={handleEventClick}
         />
       </div>
+
+      <CreateEventModal
+        show={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSubmit={handleCreate}
+        formData={createFormData}
+        setFormData={setCreateFormData}
+        currentUserEmail={currentUserEmail}
+      />
+
+      <EditEventModal
+        show={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        formData={editFormData}
+        setFormData={setEditFormData}
+        onUpdate={handleUpdate}
+        onDelete={handleDelete}
+      />
     </div>
   );
 }

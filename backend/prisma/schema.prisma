@@ -26,17 +26,18 @@ model User {
 }
 
 model Event {
-  id        Int      @id @default(autoincrement())
-  title     String
-  start     DateTime
-  end       DateTime
-  fullName  String
-  email     String
-  phone     String   @db.VarChar(20)
-  userId    Int?     
-  user      User?    @relation(fields: [userId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                Int         @id @default(autoincrement())
+  bookingTypeId     String
+  bookingType       BookingType @relation(fields: [bookingTypeId], references: [id])
+  start             DateTime
+  end               DateTime
+  fullName          String
+  email             String
+  phone             String      @db.VarChar(20)
+  userId            Int?     
+  user              User?       @relation(fields: [userId], references: [id])
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   // Add index for better query performance
   @@index([email])

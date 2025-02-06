@@ -27,12 +27,54 @@ const ProtectedRoute = ({ children }) => {
 const AuthGuard = ({ children }) => {
   const token = localStorage.getItem('token');
   const navigate = useNavigate();
+  const [isTokenValid, setIsTokenValid] = useState(null); // null means "checking"
 
   useEffect(() => {
-    if (token) navigate('/calendar');
+    if (!token) {
+      setIsTokenValid(false);
+      return;
+    }
+
+    const validate = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/events/validate-token`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // Optionally, update the userRole if different than stored one.
+          localStorage.setItem('userRole', data.role);
+          setIsTokenValid(true);
+          // Redirect based on role
+          if (data.role === 'admin') {
+            navigate('/admin/calendar');
+          } else {
+            navigate('/calendar');
+          }
+        } else {
+          // Invalid token: remove it and allow the login page to render.
+          localStorage.removeItem('token');
+          localStorage.removeItem('userRole');
+          setIsTokenValid(false);
+        }
+      } catch (error) {
+        // On any error, treat token as invalid.
+        localStorage.removeItem('token');
+        localStorage.removeItem('userRole');
+        setIsTokenValid(false);
+      }
+    };
+
+    validate();
   }, [token, navigate]);
 
-  return !token ? children : null;
+  // While we're validating, show a loading message.
+  if (token && isTokenValid === null) {
+    return <div>Loading...</div>;
+  }
+
+  // If there is no token or the token is invalid, render the children (login, verify, etc.)
+  return !token || !isTokenValid ? children : null;
 };
 
 const RegisterGuard = ({ children }) => {

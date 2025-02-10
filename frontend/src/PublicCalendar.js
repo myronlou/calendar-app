@@ -4,6 +4,8 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import listPlugin from '@fullcalendar/list';
+import interactionPlugin from '@fullcalendar/interaction';
+import { jwtDecode } from 'jwt-decode';
 import EditEventModal from './EditEventModal';
 import CreateEventModal from './CreateEventModal';
 import './PublicCalendar.css';
@@ -23,11 +25,22 @@ function PublicCalendar() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editFormData, setEditFormData] = useState({});
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
-  const currentUserEmail = localStorage.getItem('userEmail') || '';
+
+  let currentUserEmail = localStorage.getItem('userEmail') || '';
+  const token = localStorage.getItem('token');
+  if (!currentUserEmail && token) {
+    try {
+      const decoded = jwtDecode(token);
+      currentUserEmail = decoded.email || '';
+      // (Optional) You might want to save this in localStorage for future use.
+      localStorage.setItem('userEmail', currentUserEmail);
+    } catch (err) {
+      console.error('Error decoding token:', err);
+    }
+  }
 
   useEffect(() => {
     const fetchData = async () => {
-      const token = localStorage.getItem('token');
       if (!token) {
         navigate('/');
         return;
@@ -47,15 +60,13 @@ function PublicCalendar() {
         if (!eventsRes.ok) {
           throw new Error('Failed to fetch events');
         }
-
         const eventsData = await eventsRes.json();
         const formattedEvents = eventsData.map(event => ({
           ...event,
           start: new Date(event.start),
           end: new Date(event.end)
         }));
-
-        setEvents(eventsData);
+        setEvents(formattedEvents);
         setLoading(false);
       } catch (error) {
         localStorage.removeItem('token');
@@ -63,11 +74,10 @@ function PublicCalendar() {
       }
     };
     fetchData();
-  }, [navigate, API_URL]);
+  }, [navigate, API_URL, token]);
 
   // Handler for creating a new event
   const handleCreate = async () => {
-    const token = localStorage.getItem('token');
     try {
       const response = await fetch(`${API_URL}/api/events`, {
         method: 'POST',
@@ -118,7 +128,6 @@ function PublicCalendar() {
 
   // Handler for updating an event
   const handleUpdate = async (updatedFormData) => {
-    const token = localStorage.getItem('token');
     try {
       const response = await fetch(`${API_URL}/api/events/${updatedFormData.id}`, {
         method: 'PUT',
@@ -155,7 +164,6 @@ function PublicCalendar() {
 
   // Handler for deleting an event
   const handleDelete = async () => {
-    const token = localStorage.getItem('token');
     try {
       const response = await fetch(`${API_URL}/api/events/${editFormData.id}`, {
         method: 'DELETE',
@@ -175,6 +183,18 @@ function PublicCalendar() {
       console.error('Error deleting event:', error);
       return false;
     }
+  };
+
+  // Callback for clicking on a date cell (for single clicks)
+  const handleDateClick = (clickInfo) => {
+    setCreateFormData({
+      fullName: '',
+      email: currentUserEmail,
+      phone: '',
+      start: clickInfo.date.toISOString(),
+      bookingTypeId: ''
+    });
+    setShowCreateModal(true);
   };
 
   // Handler for when a date/time slot is selected to create a new booking.
@@ -206,6 +226,21 @@ function PublicCalendar() {
         </div> 
         <div className="header-right">
             <button
+              className="new-booking-button"
+              onClick={() => {
+                setCreateFormData({
+                  fullName: '',
+                  email: currentUserEmail,
+                  phone: '',
+                  start: '',
+                  bookingTypeId: ''
+                });
+                setShowCreateModal(true);
+              }}
+            >
+              New Booking
+            </button>
+            <button
               className="logout-button"
               onClick={() => {
                 localStorage.removeItem('token');
@@ -219,9 +254,10 @@ function PublicCalendar() {
       {/* MAIN CALENDAR CONTENT */}
       <div className="public-calendar-content">
         <FullCalendar
-          plugins={[dayGridPlugin, timeGridPlugin, listPlugin]}
+          plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
           initialView="dayGridMonth"
           selectable={true}
+          dateClick={handleDateClick}
           select={handleDateSelect}
           events={events.map(event => ({
             id: event.id,

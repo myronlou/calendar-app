@@ -184,7 +184,7 @@ app.post('/auth/register', async (req, res) => {
     // Generate auth token
     const expiresIn = user.role === 'admin' ? '24h' : '7d';
     const authToken = jwt.sign(
-      { userId: user.id, role: user.role },
+      { userId: user.id, role: user.role, email: user.email },
       process.env.JWT_SECRET,
       { expiresIn }
     );
@@ -214,7 +214,7 @@ app.post('/auth/login', async (req, res) => {
 
       const expiresIn = user.role === 'admin' ? '24h' : '7d';
       const authToken = jwt.sign(
-        { userId: user.id, role: user.role },
+        { userId: user.id, role: user.role, email: user.email },
         process.env.JWT_SECRET,
         { expiresIn }
       );
@@ -240,7 +240,7 @@ app.post('/auth/login', async (req, res) => {
 
     const expiresIn = user.role === 'admin' ? '24h' : '7d';
     const authToken = jwt.sign(
-      { userId: user.id, role: user.role },
+      { userId: user.id, role: user.role, email: user.email },
       process.env.JWT_SECRET,
       { expiresIn }
     );

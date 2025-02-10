@@ -38,6 +38,32 @@
   gap: 1rem;
 }
 
+.new-booking-button {
+  background: #f0f0f5;
+  border: 1px solid #d1d1d6;
+  color: black;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  font-weight: bold;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s, box-shadow 0.3s;
+}
+
+.new-booking-button:hover {
+  background-color: #e5b12c; /* Slightly darker on hover */
+  color: white;
+}
+
+.new-booking-button:active {
+  background-color: #d49a2c; /* Even darker when active */
+}
+
+.new-booking-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 199, 44, 0.5); /* Accent focus outline */
+}
+
 .logout-button {
   background: #f0f0f5;
   border: 1px solid #d1d1d6;

@@ -36,9 +36,9 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, curr
   // Automatically set the email from the current user (if not already set)
   useEffect(() => {
     if (currentUserEmail && formData.email !== currentUserEmail) {
-      setFormData({ ...formData, email: currentUserEmail });
+      setFormData(prev => ({ ...prev, email: currentUserEmail }));
     }
-  }, [currentUserEmail, formData, setFormData]);
+  }, [currentUserEmail, formData.email, setFormData]);
 
   if (!show) return null;
 

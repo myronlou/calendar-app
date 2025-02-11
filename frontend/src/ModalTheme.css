@@ -2,140 +2,156 @@
 
 /* Semi-transparent background overlay */
 .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-  }
-  
-  /* Modal container */
-  .modal-content {
-    background: #fff;
-    padding: 2rem;
-    border-radius: 8px;
-    min-width: 350px;
-    max-width: 500px;
-    position: relative;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-    color: #000; /* black text */
-  }
-  
-  /* If you want a slightly different style for the edit modal:*/
-  .modal-edit {
-    /* e.g. width: 90%; or add extra styling */
-  }
-  
-  .close-btn {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: #666;
-  }
-  
-  /* Title inside the modal */
-  .modal-title {
-    text-align: center;
-    margin: 0 0 1.5rem;
-    color: #000;
-    font-size: 1.3rem;
-    font-weight: bold;
-  }
-  
-  /* Form wrapper */
-  .modal-form {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-  
-  /* Basic labeling + input styling */
-  .form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-  }
-  .form-group label {
-    color: #333;
-    font-weight: 500;
-  }
-  .form-group input {
-    padding: 0.5rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-  }
-  .form-group input:focus {
-    outline: 2px solid #FFC72C;
-  }
-  
-  /* Error text */
-  .error-text {
-    color: red;
-    font-size: 0.85rem;
-  }
-  
-  /* Buttons in the modal */
-  .modal-buttons {
-    display: flex;
-    gap: 1rem;
-    justify-content: flex-end;
-    margin-top: 1rem;
-  }
-  
-  /* Themed button classes */
-  .primary-button {
-    background-color: #FFC72C;
-    color: #000;
-    border: none;
-    border-radius: 4px;
-    padding: 0.6rem 1rem;
-    cursor: pointer;
-    font-weight: bold;
-    transition: background-color 0.2s;
-  }
-  .primary-button:hover {
-    background-color: #e6b22c; 
-  }
-  
-  .secondary-button {
-    background-color: #f2f2f2;
-    color: #000;
-    border: none;
-    border-radius: 4px;
-    padding: 0.6rem 1rem;
-    cursor: pointer;
-  }
-  .secondary-button:hover {
-    background-color: #d9d9d9;
-  }
-  
-  /* Danger (delete) button */
-  .danger-button {
-    background-color: #f2f2f2;
-    color: red;
-    border: none;
-    border-radius: 4px;
-    padding: 0.6rem 1rem;
-    cursor: pointer;
-    font-weight: 500;
-  }
-  .danger-button:hover {
-    background-color: #ffdada;
-  }
-  
-  /* Loading icon inside button */
-  .loading-icon {
-    width: 20px;
-    height: 20px;
-    vertical-align: middle;
-  }
-  
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+/* Modal container */
+.modal-content {
+  background: #fff;
+  padding: 2rem;
+  border-radius: 8px;
+  min-width: 350px;
+  max-width: 500px;
+  position: relative;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  color: #000; /* black text */
+  overflow: visible;  /* Allow popovers (e.g., the DateTimePicker calendar) to extend outside the modal */
+}
+
+/* Optional extra styling for the edit modal */
+.modal-edit {
+  /* e.g. width: 90%; or add extra styling */
+}
+
+.close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+}
+
+/* Title inside the modal */
+.modal-title {
+  text-align: center;
+  margin: 0 0 1.5rem;
+  color: #000;
+  font-size: 1.3rem;
+  font-weight: bold;
+}
+
+/* Form wrapper */
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Basic form group styling */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.form-group label {
+  color: #333;
+  font-weight: 500;
+}
+.form-group input {
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+.form-group input:focus {
+  outline: 2px solid #FFC72C;
+}
+
+/* (Optional) Specific styling for datetime input if rendered as <input type="datetime-local"> */
+.form-group input[type="datetime-local"] {
+  padding: 0.5rem 2.5rem 0.5rem 0.5rem;  /* Adjust right padding if an icon is present */
+}
+
+/* Error text */
+.error-text {
+  color: red;
+  font-size: 0.85rem;
+}
+
+/* Modal buttons */
+.modal-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+/* Themed button classes */
+.primary-button {
+  background-color: #FFC72C;
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.2s;
+}
+.primary-button:hover {
+  background-color: #e6b22c;
+}
+
+.secondary-button {
+  background-color: #f2f2f2;
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+}
+.secondary-button:hover {
+  background-color: #d9d9d9;
+}
+
+/* Danger (delete) button */
+.danger-button {
+  background-color: #f2f2f2;
+  color: red;
+  border: none;
+  border-radius: 4px;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+.danger-button:hover {
+  background-color: #ffdada;
+}
+
+/* Loading icon inside button */
+.loading-icon {
+  width: 20px;
+  height: 20px;
+  vertical-align: middle;
+}
+
+/* --------------------------------------------------------------------------
+ MUI DateTimePicker Popper Adjustments
+ --------------------------------------------------------------------------
+ The MUI DateTimePicker (from @mui/x-date-pickers) renders its calendar
+ popup using a Popper component that gets the class .MuiPickersPopper-root.
+ Increase its z-index so that it appears above the modal overlay.
+---------------------------------------------------------------------------- */
+.MuiPickersPopper-root {
+  z-index: 1100 !important;
+}

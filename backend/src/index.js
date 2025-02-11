@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { PrismaClient } = require('@prisma/client');
+const { Prisma, PrismaClient } = require('@prisma/client');
 const authMiddleware = require('./authMiddleware');
 const validateRegistrationTokens = require('./validateRegiistrationTokens');
 const bcrypt = require('bcrypt');
@@ -336,7 +336,10 @@ app.post('/api/events', async (req, res) => {
     }
 
     // Validate required fields
-    const requiredFields = ['start', 'fullName', 'email', 'phone', 'bookingTypeId'];
+    const requiredFields = ['start', 'fullName', 'phone', 'bookingTypeId'];
+    if (!decoded.userId) {
+      requiredFields.push('email');
+    }
     
     const missingFields = requiredFields.filter(field => !eventData[field]);
     if (missingFields.length > 0) {
@@ -408,7 +411,7 @@ app.post('/api/events', async (req, res) => {
     // Send confirmation email
     await sendBookingConfirmation(
       event.email,
-      event.title,
+      bookingType.name,
       managementToken,
       {
         start: event.start,
@@ -421,7 +424,7 @@ app.post('/api/events', async (req, res) => {
       success: true,
       event: {
         id: event.id,
-        title: event.title,
+        title: bookingType.name,
         start: event.start.toISOString(),
         end: event.end.toISOString()
       }
@@ -496,13 +499,20 @@ app.put('/api/events/:id', authMiddleware, async (req, res) => {
     const updatedEvent = await prisma.event.update({
       where: { id: event.id },
       data: {
-        title: req.body.title,
         start: new Date(req.body.start),
-        end: new Date(req.body.end)
+        end: new Date(req.body.end),
+        fullName: req.body.fullName,
+        phone: req.body.phone,
+        bookingTypeId: parseInt(req.body.bookingTypeId)
       }
     });
 
-    await sendBookingUpdate(event.email, event.title);
+    // Fetch the booking type to get its name for notification.
+    const bookingType = await prisma.bookingType.findUnique({
+      where: { id: updatedEvent.bookingTypeId }
+    });
+
+    await sendBookingUpdate(event.email, bookingType ? bookingType.name : 'Booking');
     res.json(updatedEvent);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
@@ -574,7 +584,6 @@ app.put('/api/admin/events/:id', authMiddleware, adminMiddleware, async (req, re
     const updatedEvent = await prisma.event.update({
       where: { id: parseInt(req.params.id) },
       data: {
-        title: req.body.title,
         start: new Date(req.body.start),
         end: new Date(req.body.end),
         status: req.body.status
@@ -635,6 +644,115 @@ app.post('/api/admin/booking-types', authMiddleware, adminMiddleware, async (req
     res.status(500).json({ error: 'Failed to create booking type' });
   }
 });
+
+// Admin Create Event Endpoint with Customer Confirmation Email
+app.post('/api/admin/events', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const eventData = req.body;
+
+    // Validate required fields
+    const requiredFields = ['start', 'fullName', 'email', 'phone', 'bookingTypeId'];
+    const missingFields = requiredFields.filter(field => !eventData[field]);
+    if (missingFields.length > 0) {
+      return res.status(400).json({ error: 'Missing required fields: ' + missingFields.join(', ') });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(eventData.email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    // Validate phone format (example: +852 12345678)
+    const phoneRegex = /^\+\d{1,3} \d{8,15}$/;
+    if (!phoneRegex.test(eventData.phone)) {
+      return res.status(400).json({ error: 'Invalid phone number format' });
+    }
+
+    // Validate and parse the start date
+    const startDate = new Date(eventData.start);
+    if (isNaN(startDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid start date' });
+    }
+
+    // Validate booking type and compute end time based on its duration (assumed to be in minutes)
+    const bookingTypeId = parseInt(eventData.bookingTypeId);
+    const bookingType = await prisma.bookingType.findUnique({ where: { id: bookingTypeId } });
+    if (!bookingType) {
+      return res.status(400).json({ error: 'Invalid booking type' });
+    }
+    const endDate = new Date(startDate.getTime() + bookingType.duration * 60 * 1000);
+
+    // Optionally, check if a user exists with the given email to link the event to that user
+    const existingUser = await prisma.user.findUnique({
+      where: { email: eventData.email.toLowerCase() }
+    });
+
+    // Create the event in the database
+    const event = await prisma.event.create({
+      data: {
+        bookingTypeId: bookingType.id,
+        start: startDate,
+        end: endDate,
+        fullName: eventData.fullName,
+        email: eventData.email.toLowerCase(),
+        phone: eventData.phone,
+        user: existingUser ? { connect: { id: existingUser.id } } : undefined
+      }
+    });
+
+    // Generate a management token for the event so that the customer can later manage the booking.
+    const now = Date.now();
+    const eventStartTime = new Date(event.start).getTime();
+    let expiresInSeconds = Math.floor((eventStartTime - now) / 1000);
+    if (expiresInSeconds <= 0) {
+      // If the event is starting soon or has already started, use a minimal expiry time.
+      expiresInSeconds = 60;
+    }
+
+    const managementToken = jwt.sign(
+      {
+        email: event.email, // Customer's email entered by the admin
+        eventId: event.id
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: expiresInSeconds }
+    );
+
+    // Send confirmation email to the customer using the email service
+    await sendBookingConfirmation(
+      event.email,            // Customer's email address
+      bookingType.name,       // Booking type name used as event title
+      managementToken,        // Token for future booking management
+      {
+        start: event.start,
+        end: event.end,
+        fullName: event.fullName
+      }
+    );
+
+    res.json({
+      success: true,
+      event: {
+        id: event.id,
+        title: bookingType.name,
+        start: event.start.toISOString(),
+        end: event.end.toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Admin event creation error:', error);
+    // Handle known Prisma errors if needed
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return res.status(400).json({ error: 'Database error', code: error.code, meta: error.meta });
+    }
+    res.status(500).json({
+      error: 'Event creation failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 
 // UPDATE booking type
 app.put('/api/admin/booking-types/:id', authMiddleware, adminMiddleware, async (req, res) => {

@@ -6,6 +6,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import CreateEventModal from './CreateEventModal';
 import EditEventModal from './EditEventModal';
+import { jwtDecode } from 'jwt-decode';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
@@ -22,9 +23,21 @@ function Calendar() {
     customerEmail: ''
   });
   const navigate = useNavigate();
+  const token = localStorage.getItem('token');
+
+  let currentUser = null;
+  if (token) {
+    try {
+      currentUser = jwtDecode(token);
+    } catch (err) {
+      console.error('Token decode error:', err);
+      // Optionally, force re-login if token is invalid
+      localStorage.removeItem('token');
+      navigate('/auth/login');
+    }
+  }
 
   const fetchEvents = async () => {
-    const token = localStorage.getItem('token');
     if (!token) return navigate('/auth/login');
 
     try {
@@ -62,7 +75,6 @@ function Calendar() {
   }, [navigate]);
 
   const handleCreateEvent = async () => {
-    const token = localStorage.getItem('token');
     if (!token) return;
 
     try {
@@ -86,7 +98,6 @@ function Calendar() {
   };
 
   const handleUpdateEvent = async () => {
-    const token = localStorage.getItem('token');
     if (!token || !selectedEvent) return;
 
     try {
@@ -117,7 +128,6 @@ function Calendar() {
   };
 
   const handleDeleteEvent = async () => {
-    const token = localStorage.getItem('token');
     if (!token || !selectedEvent) return;
 
     try {
@@ -184,6 +194,7 @@ function Calendar() {
         formData={formData}
         setFormData={setFormData}
         onSubmit={handleCreateEvent}
+        isAdmin={currentUser && currentUser.role === 'admin'}
       />
 
       <EditEventModal

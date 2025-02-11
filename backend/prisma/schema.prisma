@@ -27,7 +27,7 @@ model User {
 
 model Event {
   id                Int         @id @default(autoincrement())
-  bookingTypeId     String
+  bookingTypeId     Int
   bookingType       BookingType @relation(fields: [bookingTypeId], references: [id])
   start             DateTime
   end               DateTime
@@ -62,7 +62,8 @@ model BookingType {
   name        String
   duration    Int
   description String? @db.Text
-  color       String?   
+  color       String?
+  events      Event[]   
 }
 
 model Availability {

@@ -7,11 +7,8 @@ import dayjs from 'dayjs';
 import './ModalTheme.css';
 import loadingGif from './gif/loading.gif';
 
-function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, currentUserEmail }) {
-  const [endTimeError, setEndTimeError] = useState('');
+function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, currentUserEmail, isAdmin, }) {
   const [loading, setLoading] = useState(false);
-
-  // State to hold available booking types
   const [bookingTypes, setBookingTypes] = useState([]);
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
@@ -33,24 +30,19 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, curr
     fetchBookingTypes();
   }, [API_URL]);
 
-  // Automatically set the email from the current user (if not already set)
+  // If the user is a customer, auto-fill the email with the current user email.
   useEffect(() => {
-    if (currentUserEmail && formData.email !== currentUserEmail) {
+    if (!isAdmin && currentUserEmail && formData.email !== currentUserEmail) {
       setFormData(prev => ({ ...prev, email: currentUserEmail }));
     }
-  }, [currentUserEmail, formData.email, setFormData]);
+  }, [isAdmin, currentUserEmail, formData.email, setFormData]);
 
   if (!show) return null;
 
-  // Overall form validation:
-  // - Valid start & end times and proper order.
-  // - A booking type is selected.
+  // Form validation: check for valid start time and a selected booking type.
   const isFormValid = (() => {
     const startVal = formData.start ? dayjs(formData.start) : null;
-    const endVal = formData.end ? dayjs(formData.end) : null;
-    if (!startVal || !endVal) return false;
-    if (!startVal.isValid() || !endVal.isValid()) return false;
-    if (endVal.isBefore(startVal)) return false;
+    if (!startVal || !startVal.isValid()) return false;
     if (!formData.bookingTypeId) return false;
     return true;
   })();
@@ -99,13 +91,23 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, curr
 
           <div className="form-group">
             <label>Email:</label>
-            {/* Display the current user’s email without allowing changes */}
-            <input
-              type="email"
-              value={currentUserEmail}
-              readOnly
-              style={{ backgroundColor: '#eee', cursor: 'not-allowed' }}
-            />
+            {isAdmin ? (
+              <input
+                type="email"
+                value={formData.email || ''}
+                required
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
+              />
+            ) : (
+              <input
+                type="email"
+                value={currentUserEmail}
+                readOnly
+                style={{ backgroundColor: '#eee', cursor: 'not-allowed' }}
+              />
+            )}
           </div>
 
           <div className="form-group">
@@ -160,37 +162,9 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, curr
                   setFormData({ ...formData, start: '' });
                   return;
                 }
-                const endVal = dayjs(formData.end);
-                if (endVal.isValid() && newVal.isAfter(endVal)) {
-                  setEndTimeError('Start time cannot be after end time');
-                } else {
-                  setEndTimeError('');
-                }
                 setFormData({ ...formData, start: newVal.toISOString() });
               }}
             />
-          </div>
-
-          <div className="form-group">
-            <label>End Time:</label>
-            <DateTimePicker
-              label="Pick End"
-              value={formData.end ? dayjs(formData.end) : null}
-              onChange={(newVal) => {
-                if (!newVal || !newVal.isValid()) {
-                  setFormData({ ...formData, end: '' });
-                  return;
-                }
-                const startVal = dayjs(formData.start);
-                if (startVal.isValid() && newVal.isBefore(startVal)) {
-                  setEndTimeError('End time cannot be before start time');
-                } else {
-                  setEndTimeError('');
-                  setFormData({ ...formData, end: newVal.toISOString() });
-                }
-              }}
-            />
-            {endTimeError && <p className="error-text">{endTimeError}</p>}
           </div>
 
           <div className="modal-buttons">

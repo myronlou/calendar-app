@@ -574,7 +574,8 @@ app.get('/api/admin/events', authMiddleware, adminMiddleware, async (req, res) =
     // Map each event to include a computed title property using bookingType.name
     const formattedEvents = events.map(event => ({
       id: event.id,
-      title: event.bookingType.name, // computed title from bookingType
+      title: event.bookingType.name,
+      bookingTypeId: event.bookingTypeId,
       bookingTypeColor: event.bookingType.color,
       start: event.start.toISOString(),
       end: event.end.toISOString(),
@@ -593,17 +594,77 @@ app.get('/api/admin/events', authMiddleware, adminMiddleware, async (req, res) =
 // Update any booking
 app.put('/api/admin/events/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const updatedEvent = await prisma.event.update({
-      where: { id: parseInt(req.params.id) },
-      data: {
-        start: new Date(req.body.start),
-        end: new Date(req.body.end),
-        status: req.body.status
-      }
+    // Validate and parse the event ID parameter
+    const eventId = parseInt(req.params.id);
+    if (isNaN(eventId)) {
+      return res.status(400).json({ error: 'Invalid event id' });
+    }
+
+    // Destructure the fields from the request body
+    const { start, fullName, email, phone, bookingTypeId } = req.body;
+
+    // Check for required fields
+    if (!start || !fullName || !email || !phone || !bookingTypeId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Validate the start time
+    const startDate = new Date(start);
+    if (isNaN(startDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format for start time' });
+    }
+
+    // Parse and validate bookingTypeId
+    const sanitizedBookingTypeId = parseInt(bookingTypeId);
+    if (isNaN(sanitizedBookingTypeId)) {
+      return res.status(400).json({ error: 'Invalid bookingTypeId' });
+    }
+
+    // Fetch the booking type record to get its duration (in minutes)
+    const bookingTypeRecord = await prisma.bookingType.findUnique({
+      where: { id: sanitizedBookingTypeId }
     });
+    if (!bookingTypeRecord) {
+      return res.status(400).json({ error: 'Invalid booking type' });
+    }
+
+    // Calculate the end time based on the booking type's duration (default to 60 minutes if unspecified)
+    const endDate = new Date(startDate.getTime() + bookingTypeRecord.duration * 60000);
+
+    // Validate email format using regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    // Validate phone format (e.g., +852 12345678)
+    const phoneRegex = /^\+\d{1,3} \d{8,15}$/;
+    if (!phoneRegex.test(phone)) {
+      return res.status(400).json({ error: 'Invalid phone number format' });
+    }
+
+    // Sanitize string fields
+    const sanitizedFullName = fullName.trim();
+    const sanitizedEmail = email.trim();
+    const sanitizedPhone = phone ? phone.trim() : null;
+
+    // Update the event in the database (title is not updated)
+    const updatedEvent = await prisma.event.update({
+      where: { id: eventId },
+      data: {
+        start: startDate,
+        end: endDate,
+        fullName: sanitizedFullName,
+        email: sanitizedEmail,
+        phone: sanitizedPhone,
+        bookingTypeId: sanitizedBookingTypeId,
+      },
+    });
+
     res.json(updatedEvent);
   } catch (error) {
-    res.status(500).json({ error: 'Update failed' });
+    console.error("Error updating event:", error);
+    res.status(500).json({ error: 'Failed to update event' });
   }
 });
 

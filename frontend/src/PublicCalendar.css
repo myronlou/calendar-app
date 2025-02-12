@@ -283,3 +283,11 @@
 .event-time {
   font-size: 0.75rem;
 }
+
+/* ---------------------------
+   10) Overflow Scrolling for Day Events
+---------------------------- */
+.fc-daygrid-day-events {
+  max-height: calc(100% - 35px);
+  overflow-y: auto;
+}

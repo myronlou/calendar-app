@@ -55,15 +55,16 @@ function Calendar() {
       
       const data = await res.json();
       setEvents(data.map(event => ({
-        id: event.id,
+        id: event.id.toString(),
         title: event.title,
         start: event.start,
         end: event.end,
         fullName: event.fullName,
         phone: event.phone,
         bookingTypeColor: event.bookingTypeColor,
+        bookingTypeId: event.bookingTypeId,
+        email: event.email,
         extendedProps: {
-          customerName: event.customerName,
           customerEmail: event.customerEmail
         }
       })));
@@ -76,7 +77,7 @@ function Calendar() {
 
   useEffect(() => {
     fetchEvents();
-    const interval = setInterval(fetchEvents, 10000);
+    const interval = setInterval(fetchEvents, 2000);
     return () => clearInterval(interval);
   }, [navigate]);
 
@@ -178,7 +179,10 @@ function Calendar() {
         title: event.title,
         start: event.start,
         end: event.end,
-        customerName: event.extendedProps.customerName,
+        phone: event.phone,
+        fullName: event.fullName,
+        email: event.email,
+        bookingTypeId: event.bookingTypeId,
         customerEmail: event.extendedProps.customerEmail
       });
       setShowEditModal(true);
@@ -202,11 +206,12 @@ function Calendar() {
           title: event.title,
           start: event.start,
           end: event.end,
+          fullName: event.fullName,
           extendedProps: {
             fullName: event.fullName,
+            customerEmail: event.customerEmail,
             phone: event.phone,
             bookingTypeId: event.bookingTypeId,
-            // Provide the booking type color; default if not provided:
             bookingTypeColor: event.bookingTypeColor || '#e5e5ea'
           }
         }))}
@@ -224,7 +229,7 @@ function Calendar() {
                 className="booking-type-dot"
                 style={{ backgroundColor: eventInfo.event.extendedProps.bookingTypeColor }}
               ></span>
-              <span className="event-title">{eventInfo.event.title}</span>
+              <span className="event-title">{eventInfo.event.extendedProps.fullName}</span>
             </div>
             <div className="event-right">
             <span className="event-time">{formatEventTime(eventInfo.event.start)}</span>
@@ -249,6 +254,7 @@ function Calendar() {
         setFormData={setFormData}
         onUpdate={handleUpdateEvent}
         onDelete={handleDeleteEvent}
+        isAdmin={currentUser && currentUser.role === 'admin'}
       />
     </div>
   );

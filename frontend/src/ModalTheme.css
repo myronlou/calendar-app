@@ -77,6 +77,23 @@
   cursor: not-allowed;
 }
 
+.myCloseButton {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  /* Optional: Add a hover effect */
+  transition: color 0.2s;
+}
+
+.myCloseButton:hover {
+  color: black;
+}
+
 /************************************************
   3) PHONE INPUT OVERRIDES
 *************************************************/
@@ -136,11 +153,24 @@
   transition: background-color 0.2s;
 }
 
-.mySecondaryButton:hover:enabled {
+.myDeleteButton {
+  background-color: #ccc;
+  color: red;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  font-size: 0.95rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.mySecondaryButton:hover:enabled,
+.myDeleteButton:hover:enabled {
   background-color: #bbb;
 }
 
-.mySecondaryButton:disabled {
+.mySecondaryButton:disabled,
+.myDeleteButton:disabled {
   opacity: 0.7;
   cursor: not-allowed;
 }

@@ -10,9 +10,18 @@ import loadingGif from './gif/loading.gif';
 
 dayjs.extend(utc);
 
-function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, currentUserEmail, isAdmin, }) {
+function CreateEventModal({
+  show,
+  onClose,
+  onSubmit,
+  formData,
+  setFormData,
+  currentUserEmail,
+  isAdmin,
+}) {
   const [loading, setLoading] = useState(false);
   const [bookingTypes, setBookingTypes] = useState([]);
+  const [emailError, setEmailError] = useState('');
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
   useEffect(() => {
@@ -36,17 +45,33 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, curr
   // If the user is a customer, auto-fill the email with the current user email.
   useEffect(() => {
     if (!isAdmin && currentUserEmail && formData.email !== currentUserEmail) {
-      setFormData(prev => ({ ...prev, email: currentUserEmail }));
+      setFormData((prev) => ({ ...prev, email: currentUserEmail }));
     }
   }, [isAdmin, currentUserEmail, formData.email, setFormData]);
 
+  // Email validation function
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (emailRegex.test(email)) {
+      setEmailError('');
+      return true;
+    } else {
+      setEmailError('Invalid email format');
+      return false;
+    }
+  };
+
   if (!show) return null;
 
-  // Form validation: check for valid start time and a selected booking type.
+  // Form validation: check for valid start time, a selected booking type, and for admins a valid email.
   const isFormValid = (() => {
     const startVal = formData.start ? dayjs(formData.start) : null;
     if (!startVal || !startVal.isValid()) return false;
     if (!formData.bookingTypeId) return false;
+    if (isAdmin) {
+      if (!formData.email) return false;
+      if (emailError) return false;
+    }
     return true;
   })();
 
@@ -82,7 +107,7 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, curr
         <form onSubmit={handleSubmit} className="myModalForm">
           {/* FULL NAME */}
           <div className="myFormGroup">
-            <label className="myLabel">Full Name:</label>
+            <label className="myLabel">Name:</label>
             <input
               type="text"
               className="myInput"
@@ -98,15 +123,24 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, curr
           <div className="myFormGroup">
             <label className="myLabel">Email:</label>
             {isAdmin ? (
-              <input
-                type="email"
-                className="myInput"
-                value={formData.email || ''}
-                required
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
-              />
+              <>
+                <input
+                  type="email"
+                  className="myInput"
+                  value={formData.email || ''}
+                  required
+                  onChange={(e) => {
+                    const email = e.target.value;
+                    setFormData({ ...formData, email });
+                    validateEmail(email);
+                  }}
+                />
+                {emailError && (
+                  <div style={{ color: 'red', marginTop: '4px', fontSize: '0.8em'}}>
+                    {emailError}
+                  </div>
+                )}
+              </>
             ) : (
               <input
                 type="email"
@@ -128,7 +162,9 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, curr
                 onChange={(phone, country) =>
                   setFormData({
                     ...formData,
-                    phone: `+${country.dialCode} ${phone.replace(country.dialCode, '').trim()}`,
+                    phone: `+${country.dialCode} ${phone
+                      .replace(country.dialCode, '')
+                      .trim()}`,
                   })
                 }
                 priority={{ tw: 1, hk: 2 }}
@@ -152,7 +188,7 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, curr
                 setFormData((prev) => ({
                   ...prev,
                   bookingTypeId: selectedId,
-                  title: selectedType ? selectedType.name : ''
+                  title: selectedType ? selectedType.name : '',
                 }));
               }}
             >

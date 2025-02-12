@@ -567,16 +567,28 @@ app.get('/api/admin/events', authMiddleware, adminMiddleware, async (req, res) =
   try {
     const events = await prisma.event.findMany({
       include: {
+        bookingType: true, // include the bookingType relation
         user: { select: { email: true } }
       }
     });
-    res.json(events);
+    // Map each event to include a computed title property using bookingType.name
+    const formattedEvents = events.map(event => ({
+      id: event.id,
+      title: event.bookingType.name, // computed title from bookingType
+      bookingTypeColor: event.bookingType.color,
+      start: event.start.toISOString(),
+      end: event.end.toISOString(),
+      fullName: event.fullName,
+      email: event.email,
+      phone: event.phone,
+      userEmail: event.user?.email || null
+    }));
+    res.json(formattedEvents);
   } catch (error) {
     console.error('Error fetching admin events:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
-
 
 // Update any booking
 app.put('/api/admin/events/:id', authMiddleware, adminMiddleware, async (req, res) => {

@@ -7,6 +7,9 @@ import interactionPlugin from '@fullcalendar/interaction';
 import CreateEventModal from './CreateEventModal';
 import EditEventModal from './EditEventModal';
 import { jwtDecode } from 'jwt-decode';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+dayjs.extend(utc);
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
@@ -56,6 +59,9 @@ function Calendar() {
         title: event.title,
         start: event.start,
         end: event.end,
+        fullName: event.fullName,
+        phone: event.phone,
+        bookingTypeColor: event.bookingTypeColor,
         extendedProps: {
           customerName: event.customerName,
           customerEmail: event.customerEmail
@@ -70,7 +76,7 @@ function Calendar() {
 
   useEffect(() => {
     fetchEvents();
-    const interval = setInterval(fetchEvents, 30000);
+    const interval = setInterval(fetchEvents, 10000);
     return () => clearInterval(interval);
   }, [navigate]);
 
@@ -89,11 +95,16 @@ function Calendar() {
 
       if (!res.ok) throw new Error('Failed to create event');
       
-      const newEvent = await res.json();
-      setEvents(prev => [...prev, newEvent]);
+      const responseData = await res.json();
+      // Extract the event from the response envelope
+      const createdEvent = responseData.event;
+      
+      setEvents(prev => [...prev, createdEvent]);
       setShowCreateModal(false);
+      return createdEvent;
     } catch (error) {
       console.error('Error creating event:', error);
+      return { error: true };
     }
   };
 
@@ -147,10 +158,12 @@ function Calendar() {
   };
 
   const handleDateClick = (info) => {
+    // Convert the received local date string to UTC before saving
+    const utcDateStr = dayjs(info.dateStr).utc().toISOString();
     setFormData({
       title: '',
-      start: info.dateStr,
-      end: info.dateStr,
+      start: utcDateStr,
+      end: utcDateStr,
       customerName: '',
       customerEmail: ''
     });
@@ -172,13 +185,31 @@ function Calendar() {
     }
   };
 
+  const formatEventTime = (dateStr) => {
+    return dayjs(dateStr).format('h A');
+  };
+
   return (
     <div className="admin-calendar">
       <h2>Admin Calendar</h2>
       <FullCalendar
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
-        events={events}
+        timeZone="local"
+        selectable={true}
+        events={events.map(event => ({
+          id: event.id,
+          title: event.title,
+          start: event.start,
+          end: event.end,
+          extendedProps: {
+            fullName: event.fullName,
+            phone: event.phone,
+            bookingTypeId: event.bookingTypeId,
+            // Provide the booking type color; default if not provided:
+            bookingTypeColor: event.bookingTypeColor || '#e5e5ea'
+          }
+        }))}
         dateClick={handleDateClick}
         eventClick={handleEventClick}
         headerToolbar={{
@@ -186,6 +217,20 @@ function Calendar() {
           center: 'dayGridMonth,timeGridWeek,dayGridDay',
           right: 'prev today next'
         }}
+        eventContent={(eventInfo) => (
+          <div className="custom-event-content">
+            <div className="event-left">
+              <span
+                className="booking-type-dot"
+                style={{ backgroundColor: eventInfo.event.extendedProps.bookingTypeColor }}
+              ></span>
+              <span className="event-title">{eventInfo.event.title}</span>
+            </div>
+            <div className="event-right">
+            <span className="event-time">{formatEventTime(eventInfo.event.start)}</span>
+            </div>
+          </div>
+        )}
       />
 
       <CreateEventModal

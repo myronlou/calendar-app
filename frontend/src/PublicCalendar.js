@@ -256,6 +256,7 @@ function PublicCalendar() {
         <FullCalendar
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
           initialView="dayGridMonth"
+          timeZone="local"
           selectable={true}
           dateClick={handleDateClick}
           select={handleDateSelect}
@@ -277,6 +278,9 @@ function PublicCalendar() {
           }}
           allDaySlot={false}
           eventClick={handleEventClick}
+          eventDidMount={(info) => {
+            info.el.classList.add('calendar-event');
+          }}
         />
       </div>
 

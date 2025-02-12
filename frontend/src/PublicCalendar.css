@@ -22,7 +22,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0;  /* remove any extra space */
+  margin-bottom: 0;
 }
 .header-left {
   display: flex;
@@ -49,19 +49,16 @@
   cursor: pointer;
   transition: background-color 0.3s, box-shadow 0.3s;
 }
-
 .new-booking-button:hover {
-  background-color: #e5b12c; /* Slightly darker on hover */
+  background-color: #e5b12c;
   color: white;
 }
-
 .new-booking-button:active {
-  background-color: #d49a2c; /* Even darker when active */
+  background-color: #d49a2c;
 }
-
 .new-booking-button:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(255, 199, 44, 0.5); /* Accent focus outline */
+  box-shadow: 0 0 0 2px rgba(255, 199, 44, 0.5);
 }
 
 .logout-button {
@@ -75,32 +72,26 @@
   cursor: pointer;
   transition: background-color 0.3s, box-shadow 0.3s;
 }
-
 .logout-button:hover {
-  background-color: #e5b12c; /* Slightly darker on hover */
+  background-color: #e5b12c;
   color: white;
 }
-
 .logout-button:active {
-  background-color: #d49a2c; /* Even darker when active */
+  background-color: #d49a2c;
 }
-
 .logout-button:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(255, 199, 44, 0.5); /* Accent focus outline */
+  box-shadow: 0 0 0 2px rgba(255, 199, 44, 0.5);
 }
 
 /* ---------------------------
-   3) FullCalendar Toolbar (Function Bar)
+   3) FullCalendar Toolbar
 ---------------------------- */
-/* Ensure no gap between header and toolbar */
 .fc .fc-toolbar {
   background-color: white;
   padding: 0.5rem;
   margin-top: 0;
 }
-
-/* Style the toolbar title and buttons */
 .fc .fc-toolbar-title {
   font-size: 1.25rem;
   font-weight: 600;
@@ -111,16 +102,14 @@
   border: 1px solid #d1d1d6;
   color: grey;
   padding: 0.3rem 1rem;
-  margin: 0;  /* remove margins so buttons connect */
-  border-radius: 0;  /* remove individual rounding */
+  margin: 0;
+  border-radius: 0;
   font-size: 0.9rem;
   cursor: pointer;
   transition: background-color 0.3s, border-color 0.3s, color 0.3s;
 }
-
-/* Grouped button adjustments */
 .fc .fc-button-group .fc-button {
-  margin: 0; /* ensure no gap between buttons */
+  margin: 0;
 }
 .fc .fc-button-group .fc-button:first-child {
   border-top-left-radius: 6px;
@@ -130,8 +119,6 @@
   border-top-right-radius: 6px;
   border-bottom-right-radius: 6px;
 }
-
-/* Hover, focus, and active states */
 .fc .fc-button:hover {
   background: #e5e5ea;
   border-color: #c7c7cc;
@@ -143,24 +130,21 @@
   border: none !important;
   box-shadow: none !important;
 }
-
 .fc .fc-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-/* Active view button styling: use grey text and similar hover background */
 .fc .fc-button-active {
   background: grey !important;
   border-color: #c7c7cc !important;
   color: white !important;
 }
-
 .fc .fc-button-group .fc-button:first-child {
-  border-left: 1px solid #d1d1d6 !important; /* or your desired border style */
+  border-left: 1px solid #d1d1d6 !important;
 }
 
 /* ---------------------------
-   Arrow and Today Button Adjustments (Smaller & Tightly Grouped)
+   4) Arrow and Today Button Adjustments
 ---------------------------- */
 .fc-button.fc-prev-button,
 .fc-button.fc-next-button,
@@ -168,29 +152,24 @@
   background-color: #ffffff !important;
   border: none !important;
   color: #1d1d1f !important;
-  padding: 0.25rem 0.5rem !important;  /* Smaller padding */
-  font-size: 0.85rem !important;       /* Slightly smaller font */
-  margin: 0 !important;                /* Remove any default margin */
+  padding: 0.25rem 0.5rem !important;
+  font-size: 0.85rem !important;
+  margin: 0 !important;
   border-radius: 4px;
 }
-
-/* Ensure buttons within a group are stuck together */
 .fc .fc-button-group .fc-button {
   margin: 0 !important;
-  border-left: 1px solid #d1d1d6; /* Optional: add a subtle divider if desired */
+  border-left: 1px solid #d1d1d6;
 }
-
-/* Remove the divider for the first button to maintain a seamless look */
 .fc .fc-button-group .fc-button:first-child {
   border-left: none;
 }
-
 .fc-button:hover {
   background: #e5e5ea !important;
 }
 
 /* ---------------------------
-   4) Main Calendar Content
+   5) Main Calendar Content
 ---------------------------- */
 .public-calendar-content {
   flex: 1;
@@ -199,7 +178,7 @@
 }
 
 /* ---------------------------
-   5) Loading Screen
+   6) Loading Screen
 ---------------------------- */
 .loading-container {
   display: flex;
@@ -223,7 +202,7 @@
 }
 
 /* ---------------------------
-   6) FullCalendar Overrides
+   7) FullCalendar Overrides
 ---------------------------- */
 .fc {
   background-color: #ffffff;
@@ -244,22 +223,19 @@
 .fc .fc-day-today {
   background-color: #fff9e6;
 }
-
 .fc .fc-col-header-cell-cushion {
   text-align: left !important;
   color: grey !important;
   text-decoration: none !important;
-  border: none !important; /* Remove any border that might resemble an underline */
-  padding-left: 10px; /* Adjust padding to push the text to the left */
+  border: none !important;
+  padding-left: 10px;
 }
-
-/* Remove underline from any anchor tags within the header, if present */
 .fc .fc-col-header-cell a {
   text-decoration: none !important;
 }
 
 /* ---------------------------
-   7) Calendar Day Number Colors
+   8) Calendar Day Number Colors
 ---------------------------- */
 .fc-daygrid-day-number {
   color: grey;
@@ -271,71 +247,39 @@
 }
 
 /* ---------------------------
-   8) Event Styling within Day Cells
+   9) Custom Event Content (Updated)
 ---------------------------- */
-/* Constrain the event container height in each day cell and enable scrolling */
-.fc-daygrid-day-events {
-  height: 80%; 
-  max-height: 100%;  
-  overflow-y: auto;    /* Enable vertical scrolling when events exceed this height */
-  overflow-x: hidden;  /* Prevent horizontal scrolling */
-  box-sizing: border-box;
-}
-
-/* Ensure individual event boxes do not force the day cell to stretch */
-.fc .fc-event {
-  background-color: #e5e5ea;
-  color: #1d1d1f;
-  border: none;
-  border-radius: 6px;
-  padding: 1px 6px;
-  font-size: 0.75rem;
-  margin: 1px 0;
-  white-space: normal;
-  overflow-wrap: break-word;
-}
-
-.fc .fc-list-day-cushion {
-  background-color: #ffffff;
-}
-.fc .fc-list .fc-list-item-marker {
-  border-color: #FFC72C;
-}
-.fc .fc-list .fc-list-item-title {
-  color: #1d1d1f;
-}
-
-/* ---------------------------
-   9) Custom Event Content
----------------------------- */
-/* Single-line event content styling */
-/* Single-line event content styling with smaller text and no golden border */
-.calendar-event {
+.custom-event-content {
+  color: black;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 4px;
-  font-size: 0.75rem; /* Reduced font size */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  background-color: #e5e5ea; /* Accent color; change if you prefer a different bg */
-  color: #1d1d1f;
-  border: none !important;        /* Remove any border */
-  box-shadow: none !important;    /* Remove any box-shadow that might resemble a golden border */
-  border-radius: 6px;
+  width: 100%;
+  font-size: 0.75rem;
+  padding: 2px 4px;
+  background-color: #ececec; 
+  border-radius: 4px;
 }
 
-/* Optional: Adjust the title and time separately if needed */
-.calendar-event .event-title {
-  flex: 1;
-  margin-right: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.event-left {
+  display: flex;
+  align-items: center;
+  flex-grow: 1;
 }
 
-.calendar-event .event-time {
+.booking-type-dot {
+  width: 10px;    
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.event-right {
   white-space: nowrap;
+  margin-left: 8px;
+}
+
+.event-time {
   font-size: 0.75rem;
 }
-

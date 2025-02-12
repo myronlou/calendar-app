@@ -4,8 +4,11 @@ import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import { DateTimePicker } from '@mui/x-date-pickers';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
 import './ModalTheme.css';
 import loadingGif from './gif/loading.gif';
+
+dayjs.extend(utc);
 
 function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, currentUserEmail, isAdmin, }) {
   const [loading, setLoading] = useState(false);
@@ -66,21 +69,23 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, curr
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="myModalOverlay" onClick={onClose}>
       <motion.div
-        className="modal-content"
+        className="myModalContent"
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.8 }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()} // Prevent click on content from closing
       >
-        <h3 className="modal-title">Create Event</h3>
-        
-        <form onSubmit={handleSubmit} className="modal-form">
-          <div className="form-group">
-            <label>Full Name:</label>
+        <h2 className="myModalTitle">Create Event</h2>
+
+        <form onSubmit={handleSubmit} className="myModalForm">
+          {/* FULL NAME */}
+          <div className="myFormGroup">
+            <label className="myLabel">Full Name:</label>
             <input
               type="text"
+              className="myInput"
               value={formData.fullName || ''}
               required
               onChange={(e) =>
@@ -89,11 +94,13 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, curr
             />
           </div>
 
-          <div className="form-group">
-            <label>Email:</label>
+          {/* EMAIL */}
+          <div className="myFormGroup">
+            <label className="myLabel">Email:</label>
             {isAdmin ? (
               <input
                 type="email"
+                className="myInput"
                 value={formData.email || ''}
                 required
                 onChange={(e) =>
@@ -103,44 +110,50 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, curr
             ) : (
               <input
                 type="email"
+                className="myInput"
                 value={currentUserEmail}
                 readOnly
-                style={{ backgroundColor: '#eee', cursor: 'not-allowed' }}
               />
             )}
           </div>
 
-          <div className="form-group">
-            <label>Phone:</label>
-            <PhoneInput
-              country="hk"
-              value={formData.phone || ''}
-              onChange={(phone, country) =>
-                setFormData({
-                  ...formData,
-                  phone: `+${country.dialCode} ${phone.replace(country.dialCode, '').trim()}`
-                })
-              }
-              priority={{ tw: 1, hk: 2 }}
-              enableSearch
-            />
+          {/* PHONE */}
+          <div className="myFormGroup">
+            <label className="myLabel">Phone:</label>
+            <div className="myPhoneContainer">
+              <PhoneInput
+                inputClass="myPhoneInput"
+                country="hk"
+                value={formData.phone || ''}
+                onChange={(phone, country) =>
+                  setFormData({
+                    ...formData,
+                    phone: `+${country.dialCode} ${phone.replace(country.dialCode, '').trim()}`,
+                  })
+                }
+                priority={{ tw: 1, hk: 2 }}
+                enableSearch
+              />
+            </div>
           </div>
 
-          <div className="form-group">
-            <label>Booking Type:</label>
+          {/* BOOKING TYPE */}
+          <div className="myFormGroup">
+            <label className="myLabel">Booking Type:</label>
             <select
+              className="mySelect"
               value={formData.bookingTypeId || ''}
               required
               onChange={(e) => {
                 const selectedId = e.target.value;
-                setFormData({ ...formData, bookingTypeId: selectedId });
-                // Automatically set the event title to the booking type's name
                 const selectedType = bookingTypes.find(
                   (type) => String(type.id) === selectedId
                 );
-                if (selectedType) {
-                  setFormData((prev) => ({ ...prev, title: selectedType.name }));
-                }
+                setFormData((prev) => ({
+                  ...prev,
+                  bookingTypeId: selectedId,
+                  title: selectedType ? selectedType.name : ''
+                }));
               }}
             >
               <option value="">Select Booking Type</option>
@@ -152,36 +165,49 @@ function CreateEventModal({ show, onClose, onSubmit, formData, setFormData, curr
             </select>
           </div>
 
-          <div className="form-group">
-            <label>Start Time:</label>
+          {/* START TIME */}
+          <div className="myFormGroup">
+            <label className="myLabel">Start Time:</label>
             <DateTimePicker
-              label="Pick Start"
+              label=""
               value={formData.start ? dayjs(formData.start) : null}
               onChange={(newVal) => {
                 if (!newVal || !newVal.isValid()) {
                   setFormData({ ...formData, start: '' });
                   return;
                 }
-                setFormData({ ...formData, start: newVal.toISOString() });
+                setFormData({ ...formData, start: newVal.utc().toISOString() });
               }}
+              renderInput={(params) => (
+                <input
+                  {...params.inputProps}
+                  className="myInput myDateTimeInput"
+                  placeholder="Pick Date & Time"
+                />
+              )}
             />
           </div>
 
-          <div className="modal-buttons">
+          {/* BUTTONS */}
+          <div className="myModalButtons">
             <button
               type="submit"
-              className="primary-button"
+              className="myPrimaryButton"
               disabled={loading || !isFormValid}
             >
               {loading ? (
-                <img src={loadingGif} alt="Loading..." className="loading-icon" />
+                <img
+                  src={loadingGif}
+                  alt="Loading..."
+                  className="myLoadingIcon"
+                />
               ) : (
                 'Create Event'
               )}
             </button>
             <button
               type="button"
-              className="secondary-button"
+              className="mySecondaryButton"
               onClick={onClose}
               disabled={loading}
             >

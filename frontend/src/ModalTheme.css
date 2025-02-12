@@ -1,7 +1,7 @@
-/* ModalTheme.css */
-
-/* Semi-transparent background overlay */
-.modal-overlay {
+/************************************************
+  1) MODAL OVERLAY & CONTAINER
+*************************************************/
+.myModalOverlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -9,149 +9,180 @@
   height: 100%;
   background-color: rgba(0,0,0,0.5);
   display: flex;
-  justify-content: center;
   align-items: center;
-  z-index: 1000;
+  justify-content: center;
+  z-index: 9999; /* ensure it's on top */
 }
 
-/* Modal container */
-.modal-content {
-  background: #fff;
-  padding: 2rem;
-  border-radius: 8px;
-  min-width: 350px;
-  max-width: 500px;
+.myModalContent {
+  background-color: #fff;
+  width: 420px;
+  max-width: 90%;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  padding: 24px;
   position: relative;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-  color: #000; /* black text */
-  overflow: visible;  /* Allow popovers (e.g., the DateTimePicker calendar) to extend outside the modal */
 }
 
-/* Optional extra styling for the edit modal */
-.modal-edit {
-  /* e.g. width: 90%; or add extra styling */
-}
-
-.close-btn {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #666;
-}
-
-/* Title inside the modal */
-.modal-title {
-  text-align: center;
-  margin: 0 0 1.5rem;
+.myModalTitle {
+  margin: 0 0 20px 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  text-align: center; /* center or left, your choice */
   color: #000;
-  font-size: 1.3rem;
-  font-weight: bold;
 }
 
-/* Form wrapper */
-.modal-form {
+/************************************************
+  2) FORM LAYOUT
+*************************************************/
+.myModalForm {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-/* Basic form group styling */
-.form-group {
+.myFormGroup {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
 }
-.form-group label {
-  color: #333;
+
+.myLabel {
+  font-size: 0.9rem;
   font-weight: 500;
+  margin-bottom: 4px;
+  color: #000;
 }
-.form-group input {
-  padding: 0.5rem;
+
+/* Input / select / textarea style */
+.myInput,
+.mySelect,
+.myDateTimeInput {
   border: 1px solid #ccc;
   border-radius: 4px;
-}
-.form-group input:focus {
-  outline: 2px solid #FFC72C;
-}
-
-/* (Optional) Specific styling for datetime input if rendered as <input type="datetime-local"> */
-.form-group input[type="datetime-local"] {
-  padding: 0.5rem 2.5rem 0.5rem 0.5rem;  /* Adjust right padding if an icon is present */
+  padding: 0.5rem 0.6rem;
+  font-size: 0.95rem;
+  font-family: inherit;
 }
 
-/* Error text */
-.error-text {
-  color: red;
-  font-size: 0.85rem;
+.myInput:focus,
+.mySelect:focus,
+.myDateTimeInput:focus {
+  outline: none;
+  border-color: #666;
 }
 
-/* Modal buttons */
-.modal-buttons {
+/* For read-only fields */
+.myInput[readonly] {
+  background-color: #eee;
+  cursor: not-allowed;
+}
+
+/************************************************
+  3) PHONE INPUT OVERRIDES
+*************************************************/
+.myPhoneContainer {
   display: flex;
-  gap: 1rem;
+}
+.myPhoneInput {
+  width: 100% !important;
+  font-size: 0.95rem !important;
+  border: 1px solid #ccc !important;
+  border-radius: 4px !important;
+  padding: 0.5rem 0.6rem !important;
+}
+.myPhoneInput:focus {
+  border-color: #666 !important;
+}
+
+/************************************************
+  4) BUTTON STYLES
+*************************************************/
+.myModalButtons {
+  display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 1rem;
   margin-top: 1rem;
 }
 
-/* Themed button classes */
-.primary-button {
-  background-color: #FFC72C;
-  color: #000;
+.myPrimaryButton {
+  background-color: #000;
+  color: white;
   border: none;
+  padding: 0.6rem 1.2rem;
+  font-size: 0.95rem;
   border-radius: 4px;
-  padding: 0.6rem 1rem;
   cursor: pointer;
-  font-weight: bold;
   transition: background-color 0.2s;
 }
-.primary-button:hover {
-  background-color: #e6b22c;
+
+.myPrimaryButton:hover:enabled {
+  background-color: #333;
 }
 
-.secondary-button {
-  background-color: #f2f2f2;
+.myPrimaryButton:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.mySecondaryButton {
+  background-color: #ccc;
   color: #000;
   border: none;
+  padding: 0.6rem 1.2rem;
+  font-size: 0.95rem;
   border-radius: 4px;
-  padding: 0.6rem 1rem;
   cursor: pointer;
-}
-.secondary-button:hover {
-  background-color: #d9d9d9;
+  transition: background-color 0.2s;
 }
 
-/* Danger (delete) button */
-.danger-button {
-  background-color: #f2f2f2;
-  color: red;
-  border: none;
-  border-radius: 4px;
-  padding: 0.6rem 1rem;
-  cursor: pointer;
-  font-weight: 500;
-}
-.danger-button:hover {
-  background-color: #ffdada;
+.mySecondaryButton:hover:enabled {
+  background-color: #bbb;
 }
 
-/* Loading icon inside button */
-.loading-icon {
+.mySecondaryButton:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.myLoadingIcon {
   width: 20px;
   height: 20px;
-  vertical-align: middle;
 }
 
-/* --------------------------------------------------------------------------
- MUI DateTimePicker Popper Adjustments
- --------------------------------------------------------------------------
- The MUI DateTimePicker (from @mui/x-date-pickers) renders its calendar
- popup using a Popper component that gets the class .MuiPickersPopper-root.
- Increase its z-index so that it appears above the modal overlay.
----------------------------------------------------------------------------- */
-.MuiPickersPopper-root {
-  z-index: 1100 !important;
+/************************************************
+  5) MUI DATE/TIME PICKER FIXES
+*************************************************/
+/* Ensure the MUI date/time picker popover is above the overlay */
+.MuiPickersPopper-root,
+.MuiPickerStaticWrapper-root,
+.MuiDatePickerRoot,
+.MuiFormControl-root .MuiTextField-root {
+  z-index: 999999 !important;
 }
+
+/* Force the MUI OutlinedInput to look more like our custom input */
+.MuiFormControl-root .MuiOutlinedInput-root {
+  height: auto !important;
+  border-radius: 4px !important;
+  font-size: 0.95rem;
+  padding: 0 !important;
+}
+.MuiFormControl-root .MuiOutlinedInput-input {
+  padding: 0.5rem 0.6rem !important;
+}
+.MuiFormControl-root .MuiOutlinedInput-notchedOutline {
+  border-color: #ccc !important;
+  transition: border-color 0.2s;
+}
+.MuiFormControl-root .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: #666 !important;
+}
+.MuiFormControl-root .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: #666 !important;
+}
+
+/* If label text overlaps, hide it or force shrink: */
+/*.MuiFormControl-root .MuiInputLabel-root {
+  display: none !important;
+}*/

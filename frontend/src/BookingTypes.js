@@ -169,7 +169,7 @@ function BookingTypesAdmin() {
       <div className="header-section">
         <div>
           <h2>Booking Types</h2>
-          <p>Create events to share for people to book on your calendar.</p>
+          <p>Create events for people to book on your calendar.</p>
         </div>
         <button className="new-btn" onClick={openCreateModal}>
           + New

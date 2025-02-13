@@ -72,3 +72,11 @@ model Availability {
   end     String
   enabled Boolean @default(true)
 }
+
+model Exclusion {
+  id        Int      @id @default(autoincrement())
+  date      DateTime // the date to exclude; send dates as strings in YYYY-MM-DD format which can be parsed to DateTime
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

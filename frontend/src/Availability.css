@@ -1,0 +1,277 @@
+/* ===== Global Container (Using the BookingTypes theme) ===== */
+.booking-types-admin-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: Arial, sans-serif;
+    color: #000;
+    background-color: #fff;
+  }
+  
+  /* ===== Header Section ===== */
+  .header-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  
+  .header-section h2 {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+  }
+  
+  .header-section p {
+    margin: 0.25rem 0 0;
+    color: #666;
+    font-size: 0.95rem;
+  }
+  
+  .new-btn {
+    background-color: #000;
+    color: #fff;
+    border: none;
+    padding: 0.7rem 1.2rem;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  
+  .new-btn:hover {
+    background-color: #333;
+  }
+  
+  /* ===== Divider ===== */
+  .divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, #ccc, transparent);
+    margin: 1.5rem 0;
+  }
+  
+  /* ===== Availability & Exclusions List ===== */
+  .booking-types-list {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 0.7rem 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .booking-type-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #eee;
+    padding: 0.7rem 0;
+  }
+  
+  .booking-type-item:last-child {
+    border-bottom: none;
+  }
+  
+  /* Middle Info */
+  .type-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+  
+  .type-name {
+    font-weight: 600;
+    font-size: 1rem;
+  }
+  
+  .type-description {
+    margin-top: 0.3rem;
+    color: #666;
+    font-size: 0.9rem;
+  }
+  
+  /* ===== Actions: Slider, Edit & Delete Buttons ===== */
+  .actions {
+    display: flex;
+    align-items: center;
+  }
+  
+  .actions .edit-btn {
+    background-color: #000;
+    color: #fff;
+    border: none;
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: 0.75rem;
+    font-size: 0.9rem;
+    transition: background-color 0.2s ease;
+  }
+  
+  .actions .edit-btn:hover {
+    background-color: #333;
+  }
+  
+  .actions .delete-btn {
+    background-color: transparent;
+    border: none;
+    color: red;
+    cursor: pointer;
+    margin-left: 0.75rem;
+    font-size: 0.9rem;
+  }
+  
+  /* ===== Slider Switch Styles ===== */
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+    margin-right: 0.75rem;
+  }
+  
+  .switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.4s;
+    border-radius: 24px;
+  }
+  
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.4s;
+    border-radius: 50%;
+  }
+  
+  .switch input:checked + .slider {
+    background-color: #FFC72C;
+  }
+  
+  .switch input:focus + .slider {
+    box-shadow: 0 0 1px #FFC72C;
+  }
+  
+  .switch input:checked + .slider:before {
+    transform: translateX(26px);
+  }
+  
+  /* ===== Modal Styles ===== */
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.3);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+  }
+  
+  .modal-content {
+    background: #fff;
+    padding: 2rem;
+    border-radius: 6px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  }
+  
+  .modal-content h3 {
+    margin-top: 0;
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  
+  .modal-content label {
+    display: block;
+    margin: 0.75rem 0 0.25rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  
+  .modal-content input[type="time"],
+  .modal-content input[type="date"],
+  .modal-content input[type="text"] {
+    width: 100%;
+    padding: 0.5rem;
+    font-size: 0.95rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+  }
+  
+  /* ===== Modal Actions ===== */
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1rem;
+  }
+  
+  .modal-save {
+    background-color: #000;
+    color: #fff;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 4px;
+    margin-right: 0.5rem;
+    cursor: pointer;
+  }
+  
+  .modal-save:hover {
+    background-color: #333;
+  }
+  
+  .modal-cancel {
+    background-color: #ddd;
+    color: #333;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .modal-cancel:hover {
+    background-color: #ccc;
+  }
+  
+/* ===== Exclusions Section ===== */
+.exclusions-section {
+    margin-top: 2rem;
+  }
+  
+  .exclusions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+  
+  .exclusions-header h2 {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+  }
+  
+  .exclusions-description {
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 1rem;
+  }

@@ -29,6 +29,7 @@ const adminMiddleware = async (req, res, next) => {
 };
 
 // Database Initialization
+// Create an admin account if the User table is empty (admin initialise)
 async function initializeAdmin() {
   const existingAdmin = await prisma.user.findFirst({ where: { role: 'admin' } });
   if (!existingAdmin) {
@@ -44,6 +45,31 @@ async function initializeAdmin() {
   }
 }
 initializeAdmin().catch(console.error);
+//create the default availability time slots (avaliability initialise)
+async function initializeAvailability() {
+  const existingAvailability = await prisma.availability.findMany();
+  if (existingAvailability.length === 0) {
+    const defaultAvailability = [
+      { day: "mon", start: "09:00", end: "18:00", enabled: true },
+      { day: "tue", start: "09:00", end: "18:00", enabled: true },
+      { day: "wed", start: "09:00", end: "18:00", enabled: true },
+      { day: "thu", start: "09:00", end: "18:00", enabled: true },
+      { day: "fri", start: "09:00", end: "18:00", enabled: true },
+      { day: "sat", start: "10:00", end: "16:00", enabled: false },
+      { day: "sun", start: "10:00", end: "16:00", enabled: false }
+    ];
+    await prisma.availability.createMany({
+      data: defaultAvailability,
+      skipDuplicates: true
+    });
+    console.log("Default availability seeded.");
+  } else {
+    console.log("Availability records already exist.");
+  }
+}
+initializeAvailability().catch(console.error);
+
+
 
 // Add at the top with other requires
 const registrationSessions = new Map();
@@ -668,6 +694,7 @@ app.put('/api/admin/events/:id', authMiddleware, adminMiddleware, async (req, re
   }
 });
 
+// Admin deleting events
 app.delete('/api/admin/events/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const eventId = parseInt(req.params.id);
@@ -696,25 +723,6 @@ app.delete('/api/admin/events/:id', authMiddleware, adminMiddleware, async (req,
       error: 'Failed to delete event',
       details: error.message 
     });
-  }
-});
-
-// Booking Types Management
-app.post('/api/admin/booking-types', authMiddleware, adminMiddleware, async (req, res) => {
-  try {
-    const { name, duration, description, color } = req.body;
-    const newType = await prisma.bookingType.create({
-      data: {
-        name,
-        duration,
-        description,      
-        color             
-      }
-    });
-    res.json(newType);
-  } catch (error) {
-    console.error('Error creating booking type:', error);
-    res.status(500).json({ error: 'Failed to create booking type' });
   }
 });
 
@@ -826,6 +834,24 @@ app.post('/api/admin/events', authMiddleware, adminMiddleware, async (req, res) 
   }
 });
 
+// Booking Types Management
+app.post('/api/admin/booking-types', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { name, duration, description, color } = req.body;
+    const newType = await prisma.bookingType.create({
+      data: {
+        name,
+        duration,
+        description,      
+        color             
+      }
+    });
+    res.json(newType);
+  } catch (error) {
+    console.error('Error creating booking type:', error);
+    res.status(500).json({ error: 'Failed to create booking type' });
+  }
+});
 
 // UPDATE booking type
 app.put('/api/admin/booking-types/:id', authMiddleware, adminMiddleware, async (req, res) => {
@@ -854,6 +880,8 @@ app.put('/api/admin/booking-types/:id', authMiddleware, adminMiddleware, async (
   }
 });
 
+
+
 // DELETE booking type
 app.delete('/api/admin/booking-types/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
@@ -872,27 +900,115 @@ app.delete('/api/admin/booking-types/:id', authMiddleware, adminMiddleware, asyn
   }
 });
 
-// Availability Management
+
+// -------------------- AVAILABILITY ROUTES --------------------
+// Get Availability (Admin only)
 app.get('/api/admin/availability', authMiddleware, adminMiddleware, async (req, res) => {
-  const availability = await prisma.availability.findMany();
-  res.json(availability);
+  try {
+    const availability = await prisma.availability.findMany();
+    res.json(availability);
+  } catch (error) {
+    console.error("Error fetching availability:", error);
+    res.status(500).json({ error: "Failed to load availability" });
+  }
 });
 
+// Update Availability (Admin only)
+// The request body should be an object with keys for each day (e.g., { mon: { start, end, enabled }, ... })
 app.put('/api/admin/availability', authMiddleware, adminMiddleware, async (req, res) => {
-  const updates = req.body;
-  
-  await Promise.all(
-    Object.entries(updates).map(([day, config]) => 
-      prisma.availability.upsert({
-        where: { day },
-        update: config,
-        create: { day, ...config }
-      })
-    )
-  );
-  
-  res.json({ success: true });
+  const updates = req.body;  
+  try {
+    await Promise.all(
+      Object.entries(updates).map(([day, config]) =>
+        prisma.availability.upsert({
+          where: { day },
+          update: config,
+          create: { day, ...config }
+        })
+      )
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error updating availability:", error);
+    res.status(500).json({ error: "Failed to update availability" });
+  }
 });
+
+// -------------------- EXCLUSION ROUTES --------------------
+// Get all exclusions (Admin only)
+app.get('/api/admin/exclusions', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const exclusions = await prisma.exclusion.findMany({
+      orderBy: { date: 'asc' }
+    });
+    res.json(exclusions);
+  } catch (error) {
+    console.error("Error fetching exclusions:", error);
+    res.status(500).json({ error: "Failed to load exclusions" });
+  }
+});
+
+// Create a new exclusion (Admin only)
+// Expect request body: { date: "YYYY-MM-DD", note: "Optional note" }
+app.post('/api/admin/exclusions', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { date, note } = req.body;
+    // Parse the date string to a Date object
+    const parsedDate = new Date(date);
+    if (isNaN(parsedDate.getTime())) {
+      return res.status(400).json({ error: "Invalid date format" });
+    }
+    const newExclusion = await prisma.exclusion.create({
+      data: {
+        date: parsedDate,
+        note: note || null
+      }
+    });
+    res.json(newExclusion);
+  } catch (error) {
+    console.error("Error creating exclusion:", error);
+    res.status(500).json({ error: "Failed to create exclusion" });
+  }
+});
+
+// Update an existing exclusion (Admin only)
+// Expect URL parameter :id and body with updated { date, note }
+app.put('/api/admin/exclusions/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const exclusionId = parseInt(req.params.id);
+    const { date, note } = req.body;
+    const parsedDate = new Date(date);
+    if (isNaN(parsedDate.getTime())) {
+      return res.status(400).json({ error: "Invalid date format" });
+    }
+    const updatedExclusion = await prisma.exclusion.update({
+      where: { id: exclusionId },
+      data: {
+        date: parsedDate,
+        note: note || null
+      }
+    });
+    res.json(updatedExclusion);
+  } catch (error) {
+    console.error("Error updating exclusion:", error);
+    res.status(500).json({ error: "Failed to update exclusion" });
+  }
+});
+
+// Delete an exclusion (Admin only)
+app.delete('/api/admin/exclusions/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const exclusionId = parseInt(req.params.id);
+    await prisma.exclusion.delete({
+      where: { id: exclusionId }
+    });
+    res.json({ success: true, message: "Exclusion deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting exclusion:", error);
+    res.status(500).json({ error: "Failed to delete exclusion" });
+  }
+});
+
 
 // -------------------- SERVER START --------------------
 const PORT = process.env.PORT || 5000;

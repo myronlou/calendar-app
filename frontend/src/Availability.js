@@ -3,7 +3,7 @@ import "./Availability.css";
 
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5001";
 
-// Define the fixed day order and a mapping from abbreviations to full names.
+// Fixed day order and mapping for full day names
 const dayOrder = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const fullDayNames = {
   mon: "Monday",
@@ -15,10 +15,50 @@ const fullDayNames = {
   sun: "Sunday",
 };
 
+/* 
+  Helper function: formatLocalTime
+  Converts a stored UTC time string to the admin's local time string "HH:MM".
+  E.g. if the stored value is "2025-02-21T15:00:00.000Z" and the admin is in UTC–5, this returns "10:00".
+*/
+function formatLocalTime(dateString) {
+  const d = new Date(dateString);
+  const hours = d.getHours().toString().padStart(2, "0");
+  const minutes = d.getMinutes().toString().padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+function getExclusionDisplay(ex) {
+  // If no times are provided, assume whole day is excluded.
+  if (!ex.startTime && !ex.endTime) {
+    return " (Whole day excluded)";
+  }
+  
+  // If an endDate is provided and it differs from the startDate, assume multi‑day exclusion.
+  if (ex.endDate && ex.endDate !== ex.startDate) {
+    if (ex.startTime && ex.endTime) {
+      return ` (From ${ex.startTime} on ${ex.startDate} to ${ex.endTime} on ${ex.endDate})`;
+    } else if (ex.startTime) {
+      return ` (From ${ex.startTime} on ${ex.startDate})`;
+    } else if (ex.endTime) {
+      return ` (From ${ex.startDate} to ${ex.endTime} on ${ex.endDate})`;
+    }
+  } else {
+    // Single-day exclusion (or no endDate)
+    if (ex.startTime && ex.endTime) {
+      return ` (Excluding ${ex.startTime} - ${ex.endTime})`;
+    } else if (ex.startTime) {
+      return ` (From ${ex.startTime} to the next day)`;
+    } else if (ex.endTime) {
+      return ` (From start of the day (midnight) until ${ex.endTime})`;
+    }
+  }
+  return "";
+}
+
 export default function AvailabilityAdmin() {
   const token = localStorage.getItem("token");
 
-  // Default state for availability (this serves as a placeholder until backend data loads)
+  // Availability state (for each day)
   const [availability, setAvailability] = useState({
     mon: { start: "09:00", end: "18:00", enabled: true },
     tue: { start: "09:00", end: "18:00", enabled: true },
@@ -28,6 +68,8 @@ export default function AvailabilityAdmin() {
     sat: { start: "10:00", end: "16:00", enabled: false },
     sun: { start: "10:00", end: "16:00", enabled: false },
   });
+
+  // Exclusions state
   const [exclusions, setExclusions] = useState([]);
   const [showTimeslotModal, setShowTimeslotModal] = useState(false);
   const [currentDay, setCurrentDay] = useState(null);
@@ -36,10 +78,11 @@ export default function AvailabilityAdmin() {
     show: false,
     mode: "create",
     index: null,
-    data: { date: "", note: "" },
+    data: { startDate: "", endDate: "", note: "", startTime: "", endTime: "" },
   });
+  // State for error messages in the exclusion modal
+  const [exclusionError, setExclusionError] = useState("");
 
-  // -----------------------
   // Fetch availability from backend
   const fetchAvailability = async () => {
     try {
@@ -47,7 +90,6 @@ export default function AvailabilityAdmin() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      // Convert array of records into an object keyed by day
       const availObj = {};
       data.forEach((rec) => {
         availObj[rec.day] = {
@@ -71,8 +113,13 @@ export default function AvailabilityAdmin() {
       const data = await res.json();
       const formatted = data.map((ex) => ({
         id: ex.id,
-        date: new Date(ex.date).toISOString().split("T")[0],
+        // For dates we use the ISO split (assuming admin input is date-only)
+        startDate: ex.startDate ? new Date(ex.startDate).toISOString().split("T")[0] : "",
+        endDate: ex.endDate ? new Date(ex.endDate).toISOString().split("T")[0] : "",
         note: ex.note,
+        // For times, convert stored UTC time to local time using our helper
+        startTime: ex.startTime ? formatLocalTime(ex.startTime) : "",
+        endTime: ex.endTime ? formatLocalTime(ex.endTime) : "",
       }));
       setExclusions(formatted);
     } catch (error) {
@@ -85,7 +132,6 @@ export default function AvailabilityAdmin() {
     fetchExclusions();
   }, []);
 
-  // -----------------------
   // Update availability on backend
   const updateAvailability = async (updates) => {
     try {
@@ -106,7 +152,7 @@ export default function AvailabilityAdmin() {
     }
   };
 
-  // Save timeslot changes from modal and update backend
+  // Save timeslot changes from modal (for daily availability)
   const saveTimeslot = () => {
     setAvailability((prev) => {
       const updated = {
@@ -119,7 +165,7 @@ export default function AvailabilityAdmin() {
     setShowTimeslotModal(false);
   };
 
-  // Handle toggling a day’s enabled status
+  // Handle toggling a day's availability
   const handleToggle = (day, checked) => {
     setAvailability((prev) => {
       const updated = {
@@ -131,7 +177,7 @@ export default function AvailabilityAdmin() {
     });
   };
 
-  // Open modal for editing a day’s timeslot
+  // Open timeslot modal for editing a day's timeslot
   const openTimeslotModal = (day) => {
     setCurrentDay(day);
     setModalData({
@@ -146,16 +192,59 @@ export default function AvailabilityAdmin() {
     setModalData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // -----------------------
-  // Exclusion functions
+  // Frontend validation function for the exclusion modal
+  const validateExclusion = (data) => {
+    if (!data.startDate) {
+      return "";
+    }
+    const sDate = new Date(data.startDate);
+    if (isNaN(sDate.getTime())) {
+      return "Invalid start date format";
+    }
+    if (data.endDate) {
+      const eDate = new Date(data.endDate);
+      if (isNaN(eDate.getTime())) {
+        return "Invalid end date format";
+      }
+      if (eDate < sDate) {
+        return "End date cannot be before start date";
+      }
+      // If same day, and both times are provided, ensure end time is after start time
+      if (data.startDate === data.endDate && data.startTime && data.endTime) {
+        const sTime = new Date(`${data.startDate}T${data.startTime}:00`);
+        const eTime = new Date(`${data.startDate}T${data.endTime}:00`);
+        if (sTime >= eTime) {
+          return "On the same day, end time must be after start time";
+        }
+      }
+    } else {
+      // No end date means same day validation
+      if (data.startTime && data.endTime) {
+        const sTime = new Date(`${data.startDate}T${data.startTime}:00`);
+        const eTime = new Date(`${data.startDate}T${data.endTime}:00`);
+        if (sTime >= eTime) {
+          return "On the same day, end time must be after start time";
+        }
+      }
+    }
+    return "";
+  };
+
+  useEffect(() => {
+    const errorMsg = validateExclusion(exclusionModal.data);
+    setExclusionError(errorMsg);
+  }, [exclusionModal.data]);
+
+  // Exclusion modal functions
   const openExclusionModal = (mode, index = null) => {
     if (mode === "create") {
       setExclusionModal({
         show: true,
         mode: "create",
         index: null,
-        data: { date: "", note: "" },
+        data: { startDate: "", endDate: "", note: "", startTime: "", endTime: "" },
       });
+      setExclusionError("");
     } else if (mode === "edit") {
       setExclusionModal({
         show: true,
@@ -163,6 +252,7 @@ export default function AvailabilityAdmin() {
         index,
         data: { ...exclusions[index] },
       });
+      setExclusionError("");
     }
   };
 
@@ -172,9 +262,19 @@ export default function AvailabilityAdmin() {
       ...prev,
       data: { ...prev.data, [name]: value },
     }));
+    // Clear any existing error when user changes input
+    setExclusionError("");
   };
 
   const saveExclusion = async () => {
+    const validationError = validateExclusion(exclusionModal.data);
+    if (validationError) {
+      setExclusionError(validationError);
+      return;
+    } else {
+      setExclusionError("");
+    }
+
     if (exclusionModal.mode === "create") {
       try {
         const res = await fetch(`${API_URL}/api/admin/exclusions`, {
@@ -186,7 +286,18 @@ export default function AvailabilityAdmin() {
           body: JSON.stringify(exclusionModal.data),
         });
         const newExclusion = await res.json();
-        newExclusion.date = new Date(newExclusion.date).toISOString().split("T")[0];
+        newExclusion.startDate = new Date(newExclusion.startDate)
+          .toISOString()
+          .split("T")[0];
+        newExclusion.endDate = newExclusion.endDate
+          ? new Date(newExclusion.endDate).toISOString().split("T")[0]
+          : "";
+        newExclusion.startTime = newExclusion.startTime
+          ? formatLocalTime(newExclusion.startTime)
+          : "";
+        newExclusion.endTime = newExclusion.endTime
+          ? formatLocalTime(newExclusion.endTime)
+          : "";
         setExclusions((prev) => [...prev, newExclusion]);
       } catch (error) {
         console.error("Error creating exclusion:", error);
@@ -203,9 +314,18 @@ export default function AvailabilityAdmin() {
           body: JSON.stringify(exclusionModal.data),
         });
         const updatedExclusion = await res.json();
-        updatedExclusion.date = new Date(updatedExclusion.date)
+        updatedExclusion.startDate = new Date(updatedExclusion.startDate)
           .toISOString()
           .split("T")[0];
+        updatedExclusion.endDate = updatedExclusion.endDate
+          ? new Date(updatedExclusion.endDate).toISOString().split("T")[0]
+          : "";
+        updatedExclusion.startTime = updatedExclusion.startTime
+          ? formatLocalTime(updatedExclusion.startTime)
+          : "";
+        updatedExclusion.endTime = updatedExclusion.endTime
+          ? formatLocalTime(updatedExclusion.endTime)
+          : "";
         setExclusions((prev) =>
           prev.map((ex, idx) => (idx === exclusionModal.index ? updatedExclusion : ex))
         );
@@ -213,7 +333,13 @@ export default function AvailabilityAdmin() {
         console.error("Error updating exclusion:", error);
       }
     }
-    setExclusionModal({ show: false, mode: "create", index: null, data: { date: "", note: "" } });
+    setExclusionModal({
+      show: false,
+      mode: "create",
+      index: null,
+      data: { startDate: "", endDate: "", note: "", startTime: "", endTime: "" },
+    });
+    setExclusionError("");
   };
 
   const deleteExclusion = async (index) => {
@@ -241,7 +367,7 @@ export default function AvailabilityAdmin() {
         </div>
       </div>
 
-      {/* Availability List (Fixed order using dayOrder) */}
+      {/* Availability List */}
       <div className="booking-types-list">
         {dayOrder.map((day) => {
           const config = availability[day];
@@ -271,7 +397,6 @@ export default function AvailabilityAdmin() {
         })}
       </div>
 
-      {/* Divider */}
       <div className="divider"></div>
 
       {/* Exclusions Section */}
@@ -283,7 +408,11 @@ export default function AvailabilityAdmin() {
           </button>
         </div>
         <p className="exclusions-description">
-          Add dates here to prevent customers from booking on specific days (such as holidays, maintenance, or closures).
+          Add exclusions to prevent bookings. You can specify:
+          <br />
+          - A start date (required) and optional end date (to span multiple days).
+          <br />
+          - Optional start and end times to exclude only part of a day.
         </p>
         {exclusions.length === 0 ? (
           <div className="empty-list">No exclusions added.</div>
@@ -292,8 +421,16 @@ export default function AvailabilityAdmin() {
             {exclusions.map((ex, idx) => (
               <div key={ex.id || idx} className="booking-type-item">
                 <div className="type-info">
-                  <div className="type-name">{ex.date}</div>
-                  <div className="type-description">{ex.note}</div>
+                  <div className="type-name">
+                    {ex.endDate ? `${ex.startDate} - ${ex.endDate}` : ex.startDate}
+                  </div>
+                  <div className="type-description">
+                    {ex.note && <span>{ex.note}</span>}
+                    {(ex.startTime || ex.endTime) && (
+                      <span>{getExclusionDisplay(ex)}</span>
+                    )}
+                    {!(ex.startTime || ex.endTime) && <span> (Whole day excluded)</span>}
+                  </div>
                 </div>
                 <div className="actions">
                   <button className="edit-btn" onClick={() => openExclusionModal("edit", idx)} title="Edit">
@@ -309,7 +446,7 @@ export default function AvailabilityAdmin() {
         )}
       </div>
 
-      {/* Modal for Editing Timeslot */}
+      {/* Timeslot Modal */}
       {showTimeslotModal && (
         <div className="modal-backdrop" onClick={() => setShowTimeslotModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -319,7 +456,9 @@ export default function AvailabilityAdmin() {
             <label>End Time</label>
             <input type="time" name="end" value={modalData.end} onChange={handleModalChange} />
             <div className="modal-actions">
-              <button className="modal-save" onClick={saveTimeslot}>Save</button>
+              <button className="modal-save" onClick={saveTimeslot}>
+                Save
+              </button>
               <button className="modal-cancel" onClick={() => setShowTimeslotModal(false)}>
                 Cancel
               </button>
@@ -328,26 +467,78 @@ export default function AvailabilityAdmin() {
         </div>
       )}
 
-      {/* Modal for Adding / Editing Exclusion */}
+      {/* Exclusion Modal */}
       {exclusionModal.show && (
         <div
           className="modal-backdrop"
           onClick={() =>
-            setExclusionModal({ show: false, mode: "create", index: null, data: { date: "", note: "" } })
+            setExclusionModal({
+              show: false,
+              mode: "create",
+              index: null,
+              data: { startDate: "", endDate: "", note: "", startTime: "", endTime: "" },
+            })
           }
         >
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>{exclusionModal.mode === "create" ? "Add" : "Edit"} Exclusion</h3>
-            <label>Date</label>
-            <input type="date" name="date" value={exclusionModal.data.date} onChange={handleExclusionChange} />
-            <label>Note (optional)</label>
-            <textarea
-              type="text"
-              name="note"
-              value={exclusionModal.data.note}
-              onChange={handleExclusionChange}
-              placeholder="e.g., Holiday or Maintenance"
-            />
+            {/* Display interactive error (if any) right after date/time rows */}
+            {exclusionError && <div className="error-message">{exclusionError}</div>}
+            <div className="date-row">
+              <div className="input-group">
+                <label>Start Date</label>
+                <input
+                  type="date"
+                  name="startDate"
+                  value={exclusionModal.data.startDate}
+                  onChange={handleExclusionChange}
+                />
+              </div>
+              <div className="input-group">
+                <label>End Date (optional)</label>
+                <input
+                  type="date"
+                  name="endDate"
+                  value={exclusionModal.data.endDate}
+                  onChange={handleExclusionChange}
+                />
+              </div>
+            </div>
+            <div className="time-row">
+              <div className="input-group">
+                <label>Start Time (optional)</label>
+                <input
+                  type="time"
+                  name="startTime"
+                  value={exclusionModal.data.startTime}
+                  onChange={handleExclusionChange}
+                />
+              </div>
+              <div className="input-group">
+                <label>End Time (optional)</label>
+                <input
+                  type="time"
+                  name="endTime"
+                  value={exclusionModal.data.endTime}
+                  onChange={handleExclusionChange}
+                />
+              </div>
+            </div>
+            <div className="info-row">
+              <p className="small-note">
+                If an end date is provided, the exclusion spans from the start date/time to the end date/time.
+                Leave times blank to exclude the whole day.
+              </p>
+            </div>
+            <div className="note-row">
+              <label>Note (optional)</label>
+              <textarea
+                name="note"
+                value={exclusionModal.data.note}
+                onChange={handleExclusionChange}
+                placeholder="e.g., Holiday or Maintenance"
+              />
+            </div>
             <div className="modal-actions">
               <button className="modal-save" onClick={saveExclusion}>
                 Save
@@ -355,7 +546,12 @@ export default function AvailabilityAdmin() {
               <button
                 className="modal-cancel"
                 onClick={() =>
-                  setExclusionModal({ show: false, mode: "create", index: null, data: { date: "", note: "" } })
+                  setExclusionModal({
+                    show: false,
+                    mode: "create",
+                    index: null,
+                    data: { startDate: "", endDate: "", note: "", startTime: "", endTime: "" },
+                  })
                 }
               >
                 Cancel

@@ -190,7 +190,7 @@
     padding: 2rem;
     border-radius: 6px;
     width: 100%;
-    max-width: 400px;
+    max-width: 500px; /* Wider modal for better aesthetics */
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   }
   
@@ -201,21 +201,53 @@
   }
   
   .modal-content label {
-    display: block;
-    margin: 0.75rem 0 0.25rem;
     font-weight: 600;
     font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+    display: block;
   }
   
   .modal-content input[type="time"],
   .modal-content input[type="date"],
-  .modal-content input[type="text"] {
+  .modal-content input[type="text"],
+  .modal-content textarea {
     width: 100%;
     padding: 0.5rem;
     font-size: 0.95rem;
     border: 1px solid #ccc;
     border-radius: 4px;
     margin-bottom: 0.5rem;
+  }
+
+  .date-row {
+    display: flex;
+    gap: 1rem;
+  }
+  
+  .time-row {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.5rem;
+  }
+
+  .input-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .info-row {
+    text-align: auto;
+    margin: 1rem 0;
+    font-size: 0.8rem;
+    color: #666;
+  }
+
+  .error-message {
+    color: red;
+    font-size: 0.9rem;
+    text-align: center;
+    margin-top: 0.5rem;
   }
   
   /* ===== Modal Actions ===== */

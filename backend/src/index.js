@@ -386,7 +386,35 @@ app.post('/api/events', async (req, res) => {
       return res.status(400).json({ error: 'Invalid phone number format' });
     }
 
+    // Parse the event start date and validate
     const startDate = new Date(eventData.start);
+    if (isNaN(startDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid start date' });
+    }
+
+    // Get day abbreviation: 0 = sun, 1 = mon, etc.
+    const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const dayAbbr = days[startDate.getDay()];
+
+    const availabilityRecord = await prisma.availability.findUnique({
+      where: { day: dayAbbr }
+    });
+
+    if (!availabilityRecord || !availabilityRecord.enabled) {
+      return res.status(400).json({ error: "Selected day is not available for booking" });
+    }
+
+    // Convert available times to total minutes from midnight
+    const [availStartHour, availStartMinute] = availabilityRecord.start.split(':').map(Number);
+    const [availEndHour, availEndMinute] = availabilityRecord.end.split(':').map(Number);
+    const availStartTotal = availStartHour * 60 + availStartMinute;
+    const availEndTotal = availEndHour * 60 + availEndMinute;
+
+    // Check that the chosen start time is within availability
+    const chosenStartTotal = startDate.getHours() * 60 + startDate.getMinutes();
+    if (chosenStartTotal < availStartTotal || chosenStartTotal >= availEndTotal) {
+      return res.status(400).json({ error: "Selected start time is outside available booking hours" });
+    }
 
     // Use bookingTypeId to determine event title and duration
     const bookingType = await prisma.bookingType.findUnique({
@@ -397,6 +425,10 @@ app.post('/api/events', async (req, res) => {
     }
     // Compute the event's end time based on the booking type's duration.
     const endDate = new Date(startDate.getTime() + bookingType.duration * 60 * 1000);
+    const chosenEndTotal = endDate.getHours() * 60 + endDate.getMinutes();
+    if (chosenEndTotal > availEndTotal) {
+      return res.status(400).json({ error: "The booking duration exceeds available booking hours for that day" });
+    }
 
     // Check if a user with emailToUse exists (for linking purposes)
     const existingUser = await prisma.user.findUnique({
@@ -514,33 +546,74 @@ app.get('/api/events/manage', authMiddleware, async (req, res) => {
 // Update Event (Authenticated)
 app.put('/api/events/:id', authMiddleware, async (req, res) => {
   try {
+    // Find the event and ensure it belongs to the authenticated user
+    const eventId = parseInt(req.params.id);
     const event = await prisma.event.findUnique({
-      where: { id: parseInt(req.params.id) }
+      where: { id: eventId }
     });
-
     if (!event || event.userId !== req.user.userId) {
       return res.status(404).json({ error: 'Event not found' });
     }
 
+    // Parse new start time
+    const startDate = new Date(req.body.start);
+    if (isNaN(startDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid start date' });
+    }
+
+    // Determine day abbreviation (0 = sun, 1 = mon, …)
+    const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const dayAbbr = days[startDate.getDay()];
+
+    // Retrieve availability record for that day
+    const availabilityRecord = await prisma.availability.findUnique({
+      where: { day: dayAbbr }
+    });
+    if (!availabilityRecord || !availabilityRecord.enabled) {
+      return res.status(400).json({ error: "Selected day is not available for booking" });
+    }
+
+    // Convert available times to minutes from midnight
+    const [availStartHour, availStartMinute] = availabilityRecord.start.split(':').map(Number);
+    const [availEndHour, availEndMinute] = availabilityRecord.end.split(':').map(Number);
+    const availStartTotal = availStartHour * 60 + availStartMinute;
+    const availEndTotal = availEndHour * 60 + availEndMinute;
+
+    // Check chosen start time against availability window
+    const chosenStartTotal = startDate.getHours() * 60 + startDate.getMinutes();
+    if (chosenStartTotal < availStartTotal || chosenStartTotal >= availEndTotal) {
+      return res.status(400).json({ error: "Selected start time is outside available booking hours" });
+    }
+
+    // Retrieve booking type to compute the new event duration
+    const bookingType = await prisma.bookingType.findUnique({
+      where: { id: parseInt(req.body.bookingTypeId) }
+    });
+    if (!bookingType) {
+      return res.status(400).json({ error: "Invalid booking type" });
+    }
+    // Compute end time based on booking type's duration
+    const computedEndDate = new Date(startDate.getTime() + bookingType.duration * 60 * 1000);
+    const chosenEndTotal = computedEndDate.getHours() * 60 + computedEndDate.getMinutes();
+    if (chosenEndTotal > availEndTotal) {
+      return res.status(400).json({ error: "The booking duration exceeds available booking hours for that day" });
+    }
+
+    // Update event with new start and computed end time (other fields updated as provided)
     const updatedEvent = await prisma.event.update({
-      where: { id: event.id },
+      where: { id: eventId },
       data: {
-        start: new Date(req.body.start),
-        end: new Date(req.body.end),
+        start: startDate,
+        end: computedEndDate,
         fullName: req.body.fullName,
         phone: req.body.phone,
         bookingTypeId: parseInt(req.body.bookingTypeId)
       }
     });
 
-    // Fetch the booking type to get its name for notification.
-    const bookingType = await prisma.bookingType.findUnique({
-      where: { id: updatedEvent.bookingTypeId }
-    });
-
-    await sendBookingUpdate(event.email, bookingType ? bookingType.name : 'Booking');
     res.json(updatedEvent);
   } catch (error) {
+    console.error('Error updating event:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -583,6 +656,37 @@ app.get('/api/booking-types', async (req, res) => {
   } catch (error) {
     console.error('Error fetching booking types:', error);
     res.status(500).json({ error: 'Failed to fetch booking types' });
+  }
+});
+
+// This endpoint returns the weekly availability (Monday through Sunday)
+// and a list of exclusion dates (formatted as YYYY-MM-DD) so that the frontend
+// can prevent users from selecting unavailable times.
+app.get('/api/availability', async (req, res) => {
+  try {
+    // Retrieve all availability records
+    const availRecords = await prisma.availability.findMany();
+    // Define a fixed day order for sorting
+    const dayOrder = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+    availRecords.sort((a, b) => dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day));
+
+    // Retrieve all exclusion records and format their dates as "YYYY-MM-DD"
+    const exclusionRecords = await prisma.exclusion.findMany({
+      orderBy: { date: 'asc' }
+    });
+    const formattedExclusions = exclusionRecords.map(ex => ({
+      id: ex.id,
+      date: new Date(ex.date).toISOString().split("T")[0],
+      note: ex.note
+    }));
+
+    res.json({
+      availability: availRecords,
+      exclusions: formattedExclusions
+    });
+  } catch (error) {
+    console.error("Error fetching public availability:", error);
+    res.status(500).json({ error: "Failed to load availability" });
   }
 });
 
@@ -669,20 +773,15 @@ app.put('/api/admin/events/:id', authMiddleware, adminMiddleware, async (req, re
       return res.status(400).json({ error: 'Invalid phone number format' });
     }
 
-    // Sanitize string fields
-    const sanitizedFullName = fullName.trim();
-    const sanitizedEmail = email.trim();
-    const sanitizedPhone = phone ? phone.trim() : null;
-
     // Update the event in the database (title is not updated)
     const updatedEvent = await prisma.event.update({
       where: { id: eventId },
       data: {
         start: startDate,
-        end: endDate,
-        fullName: sanitizedFullName,
-        email: sanitizedEmail,
-        phone: sanitizedPhone,
+        end: computedEndDate,
+        fullName: fullName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
         bookingTypeId: sanitizedBookingTypeId,
       },
     });
@@ -939,7 +1038,7 @@ app.put('/api/admin/availability', authMiddleware, adminMiddleware, async (req, 
 app.get('/api/admin/exclusions', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const exclusions = await prisma.exclusion.findMany({
-      orderBy: { date: 'asc' }
+      orderBy: { startDate: 'asc' }
     });
     res.json(exclusions);
   } catch (error) {
@@ -950,19 +1049,71 @@ app.get('/api/admin/exclusions', authMiddleware, adminMiddleware, async (req, re
 
 // Create a new exclusion (Admin only)
 // Expect request body: { date: "YYYY-MM-DD", note: "Optional note" }
+// Create a new exclusion (Admin only)
 app.post('/api/admin/exclusions', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { date, note } = req.body;
-    // Parse the date string to a Date object
-    const parsedDate = new Date(date);
-    if (isNaN(parsedDate.getTime())) {
-      return res.status(400).json({ error: "Invalid date format" });
+    const { startDate, endDate, note, startTime, endTime } = req.body;
+
+    // Validate startDate exists and is valid
+    if (!startDate) {
+      return res.status(400).json({ error: "Start date is required" });
     }
+    const parsedStartDate = new Date(startDate);
+    if (isNaN(parsedStartDate.getTime())) {
+      return res.status(400).json({ error: "Invalid start date format" });
+    }
+
+    // Validate endDate if provided
+    let parsedEndDate = null;
+    if (endDate) {
+      parsedEndDate = new Date(endDate);
+      if (isNaN(parsedEndDate.getTime())) {
+        return res.status(400).json({ error: "Invalid end date format" });
+      }
+      if (parsedEndDate < parsedStartDate) {
+        return res.status(400).json({ error: "End date must be on or after start date" });
+      }
+    }
+
+    // When the exclusion is for a single day (either no endDate or same day),
+    // and both times are provided, ensure the end time is later than the start time.
+    if (!endDate || endDate === startDate) {
+      if (startTime && endTime) {
+        const timeStart = new Date(`${startDate}T${startTime}:00`);
+        const timeEnd = new Date(`${startDate}T${endTime}:00`);
+        if (timeStart >= timeEnd) {
+          return res.status(400).json({ error: "On the same day, end time must be after start time" });
+        }
+      }
+    }
+
+    // Parse startTime if provided
+    let parsedStartTime = null;
+    if (startTime) {
+      parsedStartTime = new Date(`${startDate}T${startTime}:00`);
+      if (isNaN(parsedStartTime.getTime())) {
+        return res.status(400).json({ error: "Invalid start time format" });
+      }
+    }
+
+    // Parse endTime if provided; use endDate if provided, otherwise startDate.
+    let parsedEndTime = null;
+    if (endTime) {
+      const dateForEnd = endDate || startDate;
+      parsedEndTime = new Date(`${dateForEnd}T${endTime}:00`);
+      if (isNaN(parsedEndTime.getTime())) {
+        return res.status(400).json({ error: "Invalid end time format" });
+      }
+    }
+
     const newExclusion = await prisma.exclusion.create({
       data: {
-        date: parsedDate,
-        note: note || null
-      }
+        startDate: parsedStartDate,
+        endDate: parsedEndDate,
+        startTime: parsedStartTime,
+        endTime: parsedEndTime,
+        note: note || null,
+      },
     });
     res.json(newExclusion);
   } catch (error) {
@@ -971,22 +1122,74 @@ app.post('/api/admin/exclusions', authMiddleware, adminMiddleware, async (req, r
   }
 });
 
+
 // Update an existing exclusion (Admin only)
-// Expect URL parameter :id and body with updated { date, note }
+// Update an existing exclusion (Admin only)
 app.put('/api/admin/exclusions/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const exclusionId = parseInt(req.params.id);
-    const { date, note } = req.body;
-    const parsedDate = new Date(date);
-    if (isNaN(parsedDate.getTime())) {
-      return res.status(400).json({ error: "Invalid date format" });
+    const { startDate, endDate, note, startTime, endTime } = req.body;
+
+    // Validate startDate
+    if (!startDate) {
+      return res.status(400).json({ error: "Start date is required" });
     }
+    const parsedStartDate = new Date(startDate);
+    if (isNaN(parsedStartDate.getTime())) {
+      return res.status(400).json({ error: "Invalid start date format" });
+    }
+
+    // Validate endDate if provided
+    let parsedEndDate = null;
+    if (endDate) {
+      parsedEndDate = new Date(endDate);
+      if (isNaN(parsedEndDate.getTime())) {
+        return res.status(400).json({ error: "Invalid end date format" });
+      }
+      if (parsedEndDate < parsedStartDate) {
+        return res.status(400).json({ error: "End date must be on or after start date" });
+      }
+    }
+
+    // When exclusion is on the same day, check that endTime > startTime if both are provided.
+    if (!endDate || endDate === startDate) {
+      if (startTime && endTime) {
+        const timeStart = new Date(`${startDate}T${startTime}:00`);
+        const timeEnd = new Date(`${startDate}T${endTime}:00`);
+        if (timeStart >= timeEnd) {
+          return res.status(400).json({ error: "On the same day, end time must be after start time" });
+        }
+      }
+    }
+
+    // Parse startTime if provided
+    let parsedStartTime = null;
+    if (startTime) {
+      parsedStartTime = new Date(`${startDate}T${startTime}:00`);
+      if (isNaN(parsedStartTime.getTime())) {
+        return res.status(400).json({ error: "Invalid start time format" });
+      }
+    }
+
+    // Parse endTime if provided; use endDate if available, otherwise startDate.
+    let parsedEndTime = null;
+    if (endTime) {
+      const dateForEnd = endDate || startDate;
+      parsedEndTime = new Date(`${dateForEnd}T${endTime}:00`);
+      if (isNaN(parsedEndTime.getTime())) {
+        return res.status(400).json({ error: "Invalid end time format" });
+      }
+    }
+
     const updatedExclusion = await prisma.exclusion.update({
       where: { id: exclusionId },
       data: {
-        date: parsedDate,
-        note: note || null
-      }
+        startDate: parsedStartDate,
+        endDate: parsedEndDate,
+        startTime: parsedStartTime,
+        endTime: parsedEndTime,
+        note: note || null,
+      },
     });
     res.json(updatedExclusion);
   } catch (error) {
@@ -994,6 +1197,7 @@ app.put('/api/admin/exclusions/:id', authMiddleware, adminMiddleware, async (req
     res.status(500).json({ error: "Failed to update exclusion" });
   }
 });
+
 
 // Delete an exclusion (Admin only)
 app.delete('/api/admin/exclusions/:id', authMiddleware, adminMiddleware, async (req, res) => {
@@ -1008,7 +1212,6 @@ app.delete('/api/admin/exclusions/:id', authMiddleware, adminMiddleware, async (
     res.status(500).json({ error: "Failed to delete exclusion" });
   }
 });
-
 
 // -------------------- SERVER START --------------------
 const PORT = process.env.PORT || 5000;

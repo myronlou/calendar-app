@@ -690,6 +690,31 @@ app.get('/api/availability', async (req, res) => {
   }
 });
 
+// Public endpoint to fetch exclusions
+app.get('/api/public/exclusions', async (req, res) => {
+  try {
+    const exclusions = await prisma.exclusion.findMany({
+      orderBy: { start: 'asc' }
+    });
+    const formatted = exclusions.map(ex => {
+      const startISO = new Date(ex.start).toISOString();
+      const endISO = ex.end ? new Date(ex.end).toISOString() : "";
+      return {
+        id: ex.id,
+        // For display, extract date and time components as needed.
+        startDate: startISO.split("T")[0],
+        startTime: startISO.split("T")[1].slice(0,5),
+        endDate: endISO ? endISO.split("T")[0] : "",
+        endTime: endISO ? endISO.split("T")[1].slice(0,5) : "",
+        note: ex.note
+      };
+    });
+    res.json(formatted);
+  } catch (error) {
+    console.error("Error fetching public exclusions:", error);
+    res.status(500).json({ error: "Failed to fetch public exclusions" });
+  }
+});
 
 // -------------------- ADMIN ROUTES --------------------
 // Get all bookings
@@ -1038,7 +1063,7 @@ app.put('/api/admin/availability', authMiddleware, adminMiddleware, async (req, 
 app.get('/api/admin/exclusions', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const exclusions = await prisma.exclusion.findMany({
-      orderBy: { startDate: 'asc' }
+      orderBy: { start: 'asc' }
     });
     res.json(exclusions);
   } catch (error) {
@@ -1048,70 +1073,47 @@ app.get('/api/admin/exclusions', authMiddleware, adminMiddleware, async (req, re
 });
 
 // Create a new exclusion (Admin only)
-// Expect request body: { date: "YYYY-MM-DD", note: "Optional note" }
-// Create a new exclusion (Admin only)
 app.post('/api/admin/exclusions', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { startDate, endDate, note, startTime, endTime } = req.body;
 
-    // Validate startDate exists and is valid
+    // Validate that a start date is provided.
     if (!startDate) {
       return res.status(400).json({ error: "Start date is required" });
     }
-    const parsedStartDate = new Date(startDate);
-    if (isNaN(parsedStartDate.getTime())) {
-      return res.status(400).json({ error: "Invalid start date format" });
+
+    // Combine the start date and time.
+    // If no startTime is provided, default to midnight.
+    const combinedStart = startTime 
+      ? new Date(`${startDate}T${startTime}:00`)
+      : new Date(`${startDate}T00:00:00`);
+    if (isNaN(combinedStart.getTime())) {
+      return res.status(400).json({ error: "Invalid start date/time" });
     }
 
-    // Validate endDate if provided
-    let parsedEndDate = null;
-    if (endDate) {
-      parsedEndDate = new Date(endDate);
-      if (isNaN(parsedEndDate.getTime())) {
-        return res.status(400).json({ error: "Invalid end date format" });
-      }
-      if (parsedEndDate < parsedStartDate) {
-        return res.status(400).json({ error: "End date must be on or after start date" });
-      }
+    // Determine the effective end date.
+    // If an end date is provided, use it; otherwise, use startDate.
+    const effectiveEndDate = endDate ? endDate : startDate;
+
+    // Combine the effective end date with end time.
+    // If endTime is provided, use it; otherwise, default to end-of-day (23:59:59).
+    const combinedEnd = endTime 
+      ? new Date(`${effectiveEndDate}T${endTime}:00`)
+      : new Date(`${effectiveEndDate}T23:59:59`);
+    if (isNaN(combinedEnd.getTime())) {
+      return res.status(400).json({ error: "Invalid end date/time" });
     }
 
-    // When the exclusion is for a single day (either no endDate or same day),
-    // and both times are provided, ensure the end time is later than the start time.
-    if (!endDate || endDate === startDate) {
-      if (startTime && endTime) {
-        const timeStart = new Date(`${startDate}T${startTime}:00`);
-        const timeEnd = new Date(`${startDate}T${endTime}:00`);
-        if (timeStart >= timeEnd) {
-          return res.status(400).json({ error: "On the same day, end time must be after start time" });
-        }
-      }
+    // Ensure that the computed end datetime is after the start datetime.
+    if (combinedEnd <= combinedStart) {
+      return res.status(400).json({ error: "End date/time must be after start date/time" });
     }
 
-    // Parse startTime if provided
-    let parsedStartTime = null;
-    if (startTime) {
-      parsedStartTime = new Date(`${startDate}T${startTime}:00`);
-      if (isNaN(parsedStartTime.getTime())) {
-        return res.status(400).json({ error: "Invalid start time format" });
-      }
-    }
-
-    // Parse endTime if provided; use endDate if provided, otherwise startDate.
-    let parsedEndTime = null;
-    if (endTime) {
-      const dateForEnd = endDate || startDate;
-      parsedEndTime = new Date(`${dateForEnd}T${endTime}:00`);
-      if (isNaN(parsedEndTime.getTime())) {
-        return res.status(400).json({ error: "Invalid end time format" });
-      }
-    }
-
+    // Create the exclusion using the combined start and end fields.
     const newExclusion = await prisma.exclusion.create({
       data: {
-        startDate: parsedStartDate,
-        endDate: parsedEndDate,
-        startTime: parsedStartTime,
-        endTime: parsedEndTime,
+        start: combinedStart,
+        end: combinedEnd,
         note: note || null,
       },
     });
@@ -1124,70 +1126,38 @@ app.post('/api/admin/exclusions', authMiddleware, adminMiddleware, async (req, r
 
 
 // Update an existing exclusion (Admin only)
-// Update an existing exclusion (Admin only)
 app.put('/api/admin/exclusions/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const exclusionId = parseInt(req.params.id);
     const { startDate, endDate, note, startTime, endTime } = req.body;
 
-    // Validate startDate
     if (!startDate) {
       return res.status(400).json({ error: "Start date is required" });
     }
-    const parsedStartDate = new Date(startDate);
-    if (isNaN(parsedStartDate.getTime())) {
-      return res.status(400).json({ error: "Invalid start date format" });
+
+    const combinedStart = startTime 
+      ? new Date(`${startDate}T${startTime}:00`)
+      : new Date(`${startDate}T00:00:00`);
+    if (isNaN(combinedStart.getTime())) {
+      return res.status(400).json({ error: "Invalid start date/time" });
     }
 
-    // Validate endDate if provided
-    let parsedEndDate = null;
-    if (endDate) {
-      parsedEndDate = new Date(endDate);
-      if (isNaN(parsedEndDate.getTime())) {
-        return res.status(400).json({ error: "Invalid end date format" });
-      }
-      if (parsedEndDate < parsedStartDate) {
-        return res.status(400).json({ error: "End date must be on or after start date" });
-      }
+    const effectiveEndDate = endDate ? endDate : startDate;
+    const combinedEnd = endTime 
+      ? new Date(`${effectiveEndDate}T${endTime}:00`)
+      : new Date(`${effectiveEndDate}T23:59:59`);
+    if (isNaN(combinedEnd.getTime())) {
+      return res.status(400).json({ error: "Invalid end date/time" });
     }
-
-    // When exclusion is on the same day, check that endTime > startTime if both are provided.
-    if (!endDate || endDate === startDate) {
-      if (startTime && endTime) {
-        const timeStart = new Date(`${startDate}T${startTime}:00`);
-        const timeEnd = new Date(`${startDate}T${endTime}:00`);
-        if (timeStart >= timeEnd) {
-          return res.status(400).json({ error: "On the same day, end time must be after start time" });
-        }
-      }
-    }
-
-    // Parse startTime if provided
-    let parsedStartTime = null;
-    if (startTime) {
-      parsedStartTime = new Date(`${startDate}T${startTime}:00`);
-      if (isNaN(parsedStartTime.getTime())) {
-        return res.status(400).json({ error: "Invalid start time format" });
-      }
-    }
-
-    // Parse endTime if provided; use endDate if available, otherwise startDate.
-    let parsedEndTime = null;
-    if (endTime) {
-      const dateForEnd = endDate || startDate;
-      parsedEndTime = new Date(`${dateForEnd}T${endTime}:00`);
-      if (isNaN(parsedEndTime.getTime())) {
-        return res.status(400).json({ error: "Invalid end time format" });
-      }
+    if (combinedEnd <= combinedStart) {
+      return res.status(400).json({ error: "End date/time must be after start date/time" });
     }
 
     const updatedExclusion = await prisma.exclusion.update({
       where: { id: exclusionId },
       data: {
-        startDate: parsedStartDate,
-        endDate: parsedEndDate,
-        startTime: parsedStartTime,
-        endTime: parsedEndTime,
+        start: combinedStart,
+        end: combinedEnd,
         note: note || null,
       },
     });

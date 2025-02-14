@@ -22,9 +22,19 @@ const fullDayNames = {
 */
 function formatLocalTime(dateString) {
   const d = new Date(dateString);
+  if (isNaN(d.getTime())) return "";
   const hours = d.getHours().toString().padStart(2, "0");
   const minutes = d.getMinutes().toString().padStart(2, "0");
   return `${hours}:${minutes}`;
+}
+
+function formatLocalDate(dateString) {
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return "";
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function getExclusionDisplay(ex) {
@@ -113,13 +123,11 @@ export default function AvailabilityAdmin() {
       const data = await res.json();
       const formatted = data.map((ex) => ({
         id: ex.id,
-        // For dates we use the ISO split (assuming admin input is date-only)
-        startDate: ex.startDate ? new Date(ex.startDate).toISOString().split("T")[0] : "",
-        endDate: ex.endDate ? new Date(ex.endDate).toISOString().split("T")[0] : "",
+        startDate: ex.start ? formatLocalDate(ex.start) : "",
+        endDate: ex.end ? formatLocalDate(ex.end) : "",
+        startTime: ex.start ? formatLocalTime(ex.start) : "",
+        endTime: ex.end ? formatLocalTime(ex.end) : "",
         note: ex.note,
-        // For times, convert stored UTC time to local time using our helper
-        startTime: ex.startTime ? formatLocalTime(ex.startTime) : "",
-        endTime: ex.endTime ? formatLocalTime(ex.endTime) : "",
       }));
       setExclusions(formatted);
     } catch (error) {
@@ -212,7 +220,7 @@ export default function AvailabilityAdmin() {
       // If same day, and both times are provided, ensure end time is after start time
       if (data.startDate === data.endDate && data.startTime && data.endTime) {
         const sTime = new Date(`${data.startDate}T${data.startTime}:00`);
-        const eTime = new Date(`${data.startDate}T${data.endTime}:00`);
+        const eTime = new Date(`${data.endDate}T${data.endTime}:00`);
         if (sTime >= eTime) {
           return "On the same day, end time must be after start time";
         }
@@ -286,19 +294,15 @@ export default function AvailabilityAdmin() {
           body: JSON.stringify(exclusionModal.data),
         });
         const newExclusion = await res.json();
-        newExclusion.startDate = new Date(newExclusion.startDate)
-          .toISOString()
-          .split("T")[0];
-        newExclusion.endDate = newExclusion.endDate
-          ? new Date(newExclusion.endDate).toISOString().split("T")[0]
-          : "";
-        newExclusion.startTime = newExclusion.startTime
-          ? formatLocalTime(newExclusion.startTime)
-          : "";
-        newExclusion.endTime = newExclusion.endTime
-          ? formatLocalTime(newExclusion.endTime)
-          : "";
-        setExclusions((prev) => [...prev, newExclusion]);
+        const formatted = {
+          id: newExclusion.id,
+          startDate: newExclusion.start ? formatLocalDate(newExclusion.start) : "",
+          endDate: newExclusion.end ? formatLocalDate(newExclusion.end) : "",
+          startTime: newExclusion.start ? formatLocalTime(newExclusion.start) : "",
+          endTime: newExclusion.end ? formatLocalTime(newExclusion.end) : "",
+          note: newExclusion.note,
+        };
+        setExclusions((prev) => [...prev, formatted]);
       } catch (error) {
         console.error("Error creating exclusion:", error);
       }
@@ -314,20 +318,17 @@ export default function AvailabilityAdmin() {
           body: JSON.stringify(exclusionModal.data),
         });
         const updatedExclusion = await res.json();
-        updatedExclusion.startDate = new Date(updatedExclusion.startDate)
-          .toISOString()
-          .split("T")[0];
-        updatedExclusion.endDate = updatedExclusion.endDate
-          ? new Date(updatedExclusion.endDate).toISOString().split("T")[0]
-          : "";
-        updatedExclusion.startTime = updatedExclusion.startTime
-          ? formatLocalTime(updatedExclusion.startTime)
-          : "";
-        updatedExclusion.endTime = updatedExclusion.endTime
-          ? formatLocalTime(updatedExclusion.endTime)
-          : "";
+        const formatted = {
+          id: updatedExclusion.id,
+          startDate: updatedExclusion.start ? formatLocalDate(updatedExclusion.start) : "",
+          endDate: updatedExclusion.end ? formatLocalDate(updatedExclusion.end) : "",
+          startTime: updatedExclusion.start ? formatLocalTime(updatedExclusion.start) : "",
+          endTime: updatedExclusion.end ? formatLocalTime(updatedExclusion.end) : "",
+          note: updatedExclusion.note,
+        };
+
         setExclusions((prev) =>
-          prev.map((ex, idx) => (idx === exclusionModal.index ? updatedExclusion : ex))
+          prev.map((ex, idx) => (idx === exclusionModal.index ? formatted : ex))
         );
       } catch (error) {
         console.error("Error updating exclusion:", error);

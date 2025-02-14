@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -13,8 +13,19 @@ dayjs.extend(utc);
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
+// Converts a UTC time string to a local "HH:mm" string.
+function formatLocalTime(dateString) {
+  const d = new Date(dateString);
+  const hours = d.getHours().toString().padStart(2, '0');
+  const minutes = d.getMinutes().toString().padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
 function Calendar() {
   const [events, setEvents] = useState([]);
+  const [backgroundEvents, setBackgroundEvents] = useState([]);
+  const [adminAvailability, setAdminAvailability] = useState({}); // e.g., { mon: { start:"09:00", end:"18:00", enabled: true }, ... }
+  const [rawExclusions, setRawExclusions] = useState([]); // fetched from /api/public/exclusions
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -27,6 +38,7 @@ function Calendar() {
   });
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
+  const calendarRef = useRef(null); // to access FullCalendar API
 
   let currentUser = null;
   if (token) {
@@ -34,15 +46,14 @@ function Calendar() {
       currentUser = jwtDecode(token);
     } catch (err) {
       console.error('Token decode error:', err);
-      // Optionally, force re-login if token is invalid
       localStorage.removeItem('token');
       navigate('/auth/login');
     }
   }
 
+  // Fetch admin events
   const fetchEvents = async () => {
     if (!token) return navigate('/auth/login');
-
     try {
       const res = await fetch(`${API_URL}/api/admin/events`, {
         headers: { 
@@ -50,9 +61,7 @@ function Calendar() {
           'Content-Type': 'application/json'
         }
       });
-      
       if (!res.ok) throw new Error('Failed to fetch events');
-      
       const data = await res.json();
       setEvents(data.map(event => ({
         id: event.id.toString(),
@@ -75,15 +84,141 @@ function Calendar() {
     }
   };
 
+  // Fetch admin availability
+  const fetchAdminAvailability = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/admin/availability`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      const availObj = {};
+      data.forEach(rec => {
+        availObj[rec.day] = {
+          start: rec.start,
+          end: rec.end,
+          enabled: rec.enabled
+        };
+      });
+      setAdminAvailability(availObj);
+    } catch (error) {
+      console.error("Error fetching admin availability:", error);
+    }
+  };
+
+  // Fetch raw exclusions from public endpoint
+  const fetchRawExclusions = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/public/exclusions`);
+      if (!res.ok) throw new Error('Failed to fetch public exclusions');
+      const data = await res.json();
+      setRawExclusions(data);
+    } catch (error) {
+      console.error("Error fetching raw exclusions:", error);
+    }
+  };
+
   useEffect(() => {
     fetchEvents();
+    fetchAdminAvailability();
+    fetchRawExclusions();
     const interval = setInterval(fetchEvents, 2000);
     return () => clearInterval(interval);
-  }, [navigate]);
+  }, [navigate, token]);
+
+  // Generate background events based on admin availability and exclusions.
+  const generateBackgroundEvents = (info) => {
+    let bgEvents = [];
+    const rangeStart = dayjs(info.start);
+    const rangeEnd = dayjs(info.end);
+    // First, generate background events for admin availability:
+    for (let d = rangeStart; d.isBefore(rangeEnd); d = d.add(1, 'day')) {
+      const dayAbbr = d.format('ddd').toLowerCase(); // e.g., "mon", "tue", etc.
+      const avail = adminAvailability[dayAbbr];
+      const dayStr = d.format('YYYY-MM-DD');
+      if (!avail || !avail.enabled) {
+        // If not enabled, mark the whole day as unavailable.
+        bgEvents.push({
+          id: `bg-${dayStr}`,
+          start: dayStr,
+          end: d.add(1, 'day').format('YYYY-MM-DD'),
+          display: 'background',
+          backgroundColor: '#cccccc'
+        });
+      } else {
+        // Mark the time before the available window:
+        bgEvents.push({
+          id: `bg-${dayStr}-morning`,
+          start: dayStr, // midnight by default
+          end: `${dayStr}T${avail.start}`,
+          display: 'background',
+          backgroundColor: '#cccccc'
+        });
+        // Mark the time after the available window:
+        bgEvents.push({
+          id: `bg-${dayStr}-evening`,
+          start: `${dayStr}T${avail.end}`,
+          end: d.add(1, 'day').format('YYYY-MM-DD'),
+          display: 'background',
+          backgroundColor: '#cccccc'
+        });
+      }
+    }
+
+    // Next, generate background events for each exclusion:
+    rawExclusions.forEach(ex => {
+      
+      // Use the provided exclusion dates.
+      const exStart = dayjs(ex.startDate);
+      const exEnd = ex.endDate ? dayjs(ex.endDate) : exStart;
+      // Loop over each day in the visible range that falls within the exclusion.
+      for (let d = rangeStart; d.isBefore(rangeEnd); d = d.add(1, 'day')) {
+        if (d.isBefore(exStart, 'day') || d.isAfter(exEnd, 'day')) continue;
+        // Determine effective times for this day.
+        let effectiveStart = "00:00";
+        let effectiveEnd = "24:00";
+        if (d.isSame(exStart, 'day') && ex.startTime) {
+          effectiveStart = formatLocalTime(ex.startTime);
+        }
+        if (d.isSame(exEnd, 'day') && ex.endTime) {
+          effectiveEnd = formatLocalTime(ex.endTime);
+        }
+        const dayStr = d.format('YYYY-MM-DD');
+        let eventStart = `${dayStr}T${effectiveStart}`;
+        let eventEnd = effectiveEnd === "24:00" 
+          ? d.add(1, 'day').format('YYYY-MM-DD') 
+          : `${dayStr}T${effectiveEnd}`;
+        bgEvents.push({
+          id: `ex-${ex.id}-${dayStr}`,
+          start: eventStart,
+          end: eventEnd,
+          display: 'background',
+          backgroundColor: '#cccccc'
+        });
+      }
+    });
+    setBackgroundEvents(bgEvents);
+  };
+
+  // Use FullCalendar's datesSet callback to generate background events.
+  const handleDatesSet = (info) => {
+    if (Object.keys(adminAvailability).length > 0) {
+      generateBackgroundEvents(info);
+    }
+  };
+
+  // Also recalc background events if availability or exclusions change.
+  useEffect(() => {
+    if (calendarRef.current && Object.keys(adminAvailability).length > 0) {
+      const calendarApi = calendarRef.current.getApi();
+      generateBackgroundEvents({
+        start: calendarApi.view.activeStart,
+        end: calendarApi.view.activeEnd
+      });
+    }
+  }, [adminAvailability, rawExclusions]);
 
   const handleCreateEvent = async () => {
     if (!token) return;
-
     try {
       const res = await fetch(`${API_URL}/api/admin/events`, {
         method: 'POST',
@@ -93,13 +228,9 @@ function Calendar() {
         },
         body: JSON.stringify(formData)
       });
-
       if (!res.ok) throw new Error('Failed to create event');
-      
       const responseData = await res.json();
-      // Extract the event from the response envelope
       const createdEvent = responseData.event;
-      
       setEvents(prev => [...prev, createdEvent]);
       setShowCreateModal(false);
       return createdEvent;
@@ -111,28 +242,18 @@ function Calendar() {
 
   const handleUpdateEvent = async () => {
     if (!token || !selectedEvent) return;
-
     try {
-      const res = await fetch(
-        `${API_URL}/api/admin/events/${selectedEvent.id}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(formData)
-        }
-      );
-
+      const res = await fetch(`${API_URL}/api/admin/events/${selectedEvent.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+      });
       if (!res.ok) throw new Error('Failed to update event');
-      
       const updatedEvent = await res.json();
-      setEvents(prev => 
-        prev.map(event => 
-          event.id === updatedEvent.id ? updatedEvent : event
-        )
-      );
+      setEvents(prev => prev.map(event => event.id === updatedEvent.id ? updatedEvent : event));
       setShowEditModal(false);
     } catch (error) {
       console.error('Error updating event:', error);
@@ -141,16 +262,11 @@ function Calendar() {
 
   const handleDeleteEvent = async () => {
     if (!token || !selectedEvent) return;
-
     try {
-      await fetch(
-        `${API_URL}/api/admin/events/${selectedEvent.id}`,
-        {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
-        }
-      );
-      
+      await fetch(`${API_URL}/api/admin/events/${selectedEvent.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       setEvents(prev => prev.filter(event => event.id !== selectedEvent.id));
       setShowEditModal(false);
     } catch (error) {
@@ -159,7 +275,6 @@ function Calendar() {
   };
 
   const handleDateClick = (info) => {
-    // Convert the received local date string to UTC before saving
     const utcDateStr = dayjs(info.dateStr).utc().toISOString();
     setFormData({
       title: '',
@@ -197,45 +312,44 @@ function Calendar() {
     <div className="admin-calendar">
       <h2>Admin Calendar</h2>
       <FullCalendar
+        ref={calendarRef}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
         timeZone="local"
         selectable={true}
-        events={events.map(event => ({
-          id: event.id,
-          title: event.title,
-          start: event.start,
-          end: event.end,
-          fullName: event.fullName,
-          extendedProps: {
-            fullName: event.fullName,
-            customerEmail: event.customerEmail,
-            phone: event.phone,
-            bookingTypeId: event.bookingTypeId,
-            bookingTypeColor: event.bookingTypeColor || '#e5e5ea'
-          }
-        }))}
+        // Merge admin events with background events.
+        events={[...events, ...backgroundEvents]}
+        datesSet={handleDatesSet}
         dateClick={handleDateClick}
         eventClick={handleEventClick}
+        allDaySlot={false}
         headerToolbar={{
           left: 'title',
           center: 'dayGridMonth,timeGridWeek,dayGridDay',
           right: 'prev today next'
         }}
-        eventContent={(eventInfo) => (
-          <div className="custom-event-content">
-            <div className="event-left">
-              <span
-                className="booking-type-dot"
-                style={{ backgroundColor: eventInfo.event.extendedProps.bookingTypeColor }}
-              ></span>
-              <span className="event-title">{eventInfo.event.extendedProps.fullName}</span>
+        eventContent={(eventInfo) => {
+          // If it's a background event, return null so no "12 AM" or "All Day" label appears
+          if (eventInfo.event.display === 'background') {
+            return null;
+          }
+          // Otherwise, show your normal custom event content
+          return (
+            <div className="custom-event-content">
+              <div className="event-left">
+                <span
+                  className="booking-type-dot"
+                  style={{ backgroundColor: eventInfo.event.extendedProps.bookingTypeColor }}
+                ></span>
+                <span className="event-title">{eventInfo.event.extendedProps.fullName}</span>
+              </div>
+              <div className="event-right">
+                {/* Example: format your event start time for display */}
+                {dayjs(eventInfo.event.start).format('h A')}
+              </div>
             </div>
-            <div className="event-right">
-            <span className="event-time">{formatEventTime(eventInfo.event.start)}</span>
-            </div>
-          </div>
-        )}
+          );
+        }}
       />
 
       <CreateEventModal

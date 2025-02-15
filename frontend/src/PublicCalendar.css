@@ -291,3 +291,12 @@
   max-height: calc(100% - 35px);
   overflow-y: auto;
 }
+
+/* Force a single solid color, no blending, no border, no shadow. */
+.fc .fc-bg-event {
+  background-color: #ececec !important; /* your chosen shade */
+  opacity: 1 !important;
+  border: none !important;
+  box-shadow: none !important;
+  mix-blend-mode: normal !important;
+}

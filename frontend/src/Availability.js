@@ -15,11 +15,32 @@ const fullDayNames = {
   sun: "Sunday",
 };
 
-/* 
-  Helper function: formatLocalTime
-  Converts a stored UTC time string to the admin's local time string "HH:MM".
-  E.g. if the stored value is "2025-02-21T15:00:00.000Z" and the admin is in UTC–5, this returns "10:00".
-*/
+//availability functions
+function utcStringToLocalTime(utcHHMM) {
+  if (!utcHHMM) return "";
+  const [h, m] = utcHHMM.split(":").map(Number);
+  // Construct a Date in UTC for 1970-01-01 at h:m
+  const date = new Date(Date.UTC(1970, 0, 1, h, m));
+  // Convert to local hours/minutes
+  const localHours = date.getHours().toString().padStart(2, "0");
+  const localMinutes = date.getMinutes().toString().padStart(2, "0");
+  return `${localHours}:${localMinutes}`;
+}
+
+// Converts a local time string (e.g. "09:00") to a UTC time string "HH:MM".
+function localTimeToUtcString(localHHMM) {
+  if (!localHHMM) return "";
+  const [h, m] = localHHMM.split(":").map(Number);
+  const date = new Date();
+  // Set the Date to today's local date/time at h:m
+  date.setHours(h, m, 0, 0);
+  // Extract the UTC hours/minutes
+  const utcHours = date.getUTCHours().toString().padStart(2, "0");
+  const utcMinutes = date.getUTCMinutes().toString().padStart(2, "0");
+  return `${utcHours}:${utcMinutes}`;
+}
+
+//exclusion functions
 function formatLocalTime(dateString) {
   const d = new Date(dateString);
   if (isNaN(d.getTime())) return "";
@@ -103,8 +124,8 @@ export default function AvailabilityAdmin() {
       const availObj = {};
       data.forEach((rec) => {
         availObj[rec.day] = {
-          start: rec.start,
-          end: rec.end,
+          start: utcStringToLocalTime(rec.start),
+          end: utcStringToLocalTime(rec.end),
           enabled: rec.enabled,
         };
       });
@@ -141,7 +162,16 @@ export default function AvailabilityAdmin() {
   }, []);
 
   // Update availability on backend
-  const updateAvailability = async (updates) => {
+  const updateAvailability = async (localUpdates) => {
+    const updatesForDB = {};
+    Object.entries(localUpdates).forEach(([day, config]) => {
+      updatesForDB[day] = {
+        enabled: config.enabled,
+        start: localTimeToUtcString(config.start),
+        end: localTimeToUtcString(config.end),
+      };
+    });
+
     try {
       const res = await fetch(`${API_URL}/api/admin/availability`, {
         method: "PUT",
@@ -149,7 +179,7 @@ export default function AvailabilityAdmin() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(updates),
+        body: JSON.stringify(updatesForDB),
       });
       const result = await res.json();
       if (result.success) {

@@ -1,0 +1,73 @@
+/* MiniCalendar.css */
+
+/* Container fills the sidebar width; adjust as needed */
+.mini-calendar-container {
+    width: 100%;              /* fills the sidebar width */
+    background-color: #f4f4f4; /* match your sidebar color */
+    padding: 0.5rem;          /* some spacing around the calendar */
+    box-sizing: border-box;
+  }
+  
+  /* Remove default margins & padding from the FullCalendar root */
+  .mini-calendar-container .fc {
+    margin: 0;
+    padding: 0;
+  }
+  
+  /* Hide any extra border or shadow from the main FC container */
+  .mini-calendar-container .fc .fc-scrollgrid {
+    border: none !important;
+    box-shadow: none !important;
+  }
+  
+  /* Each day cell is smaller & has a subtle border */
+  .mini-calendar-container .fc-daygrid-day {
+    text-align: center;
+    vertical-align: middle;
+    border: 1px solid #eee;
+    padding: 0.3rem 0;       /* reduce cell padding for a mini look */
+    cursor: pointer;
+    background-color: #fff;  /* white cell background for contrast */
+    transition: background-color 0.15s;
+  }
+  
+  /* Hover effect */
+  .mini-calendar-container .fc-daygrid-day:hover {
+    background-color: #eaeaea; /* slightly darker hover */
+  }
+  
+  /* Dim days from next/previous month */
+  .mini-calendar-container .fc-day-other {
+    color: #999;
+  }
+  
+  /* Today highlight: subtle background or circle highlight */
+  .mini-calendar-container .fc-day-today {
+    background-color: #dce6f0; /* light highlight for the cell */
+  }
+  
+  /* If you want a circular highlight for today's date number: */
+  .mini-calendar-container .fc-day-today .fc-daygrid-day-number {
+    background-color: #007bff;
+    color: #fff;
+    border-radius: 50%;
+    padding: 0.2rem;
+    width: 1.4rem;
+    display: inline-block;
+    box-sizing: border-box;
+  }
+  
+  /* Smaller day number font size */
+  .mini-calendar-container .fc-daygrid-day-number {
+    font-size: 0.8rem; /* smaller text */
+    font-weight: 500;
+    color: #333;       /* text color to match your theme */
+  }
+  
+  /* Hide the "day" headers (S, M, T, W, T, F, S) if you want an even smaller look
+  .mini-calendar-container .fc-col-header {
+    display: none;
+  }
+  */
+  
+  

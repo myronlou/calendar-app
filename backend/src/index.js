@@ -45,6 +45,7 @@ async function initializeAdmin() {
   }
 }
 initializeAdmin().catch(console.error);
+
 //create the default availability time slots (avaliability initialise)
 async function initializeAvailability() {
   const existingAvailability = await prisma.availability.findMany();
@@ -69,7 +70,77 @@ async function initializeAvailability() {
 }
 initializeAvailability().catch(console.error);
 
+/**
+ * Checks if the given start/end date/time is allowed based on:
+ * 1) The availability for that day (day is enabled, within start/end times)
+ * 2) No overlap with any exclusion
+ * 3) No overlap with existing events (double-booking prevention)
+ * 
+ * @param {Date} startDate - Proposed event start
+ * @param {Date} endDate   - Proposed event end
+ * @param {PrismaClient} prisma
+ * @param {number} [excludeEventId] - (Optional) If updating an existing event, pass its ID to ignore itself
+ * @returns {Promise<{ok: boolean, message?: string}>}
+ */
+async function validateAvailabilityAndExclusions(startDate, endDate, prisma, excludeEventId) {
+  // 1) Check if day is enabled & time is within availability
+  const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  const dayAbbr = days[startDate.getDay()]; // e.g. 'mon'
+  
+  const availabilityRecord = await prisma.availability.findUnique({
+    where: { day: dayAbbr }
+  });
+  if (!availabilityRecord || !availabilityRecord.enabled) {
+    return { ok: false, message: "Selected day is not available for booking" };
+  }
 
+  // Convert availability window to minutes from midnight
+  const [availStartHour, availStartMinute] = availabilityRecord.start.split(':').map(Number);
+  const [availEndHour, availEndMinute] = availabilityRecord.end.split(':').map(Number);
+  const availStartTotal = availStartHour * 60 + availStartMinute;
+  const availEndTotal = availEndHour * 60 + availEndMinute;
+
+  // Convert chosen times to minutes from midnight
+  const chosenStartTotal = startDate.getHours() * 60 + startDate.getMinutes();
+  const chosenEndTotal = endDate.getHours() * 60 + endDate.getMinutes();
+
+  // Must be within availability window
+  if (chosenStartTotal < availStartTotal || chosenEndTotal > availEndTotal) {
+    return { ok: false, message: "Selected time is outside available booking hours" };
+  }
+
+  // 2) Check for exclusions overlap
+  // Overlap if (exclusion.start <= endDate) AND (exclusion.end >= startDate)
+  const overlappingExclusions = await prisma.exclusion.findMany({
+    where: {
+      start: { lte: endDate },
+      end: { gte: startDate }
+    }
+  });
+  if (overlappingExclusions.length > 0) {
+    return { ok: false, message: "Selected time is excluded from booking" };
+  }
+
+  // 3) Prevent double-booking with existing events
+  // Overlap if (event.start < endDate) AND (event.end > startDate)
+  // Also exclude the event with ID = excludeEventId if provided (updating scenario)
+  const overlapFilter = {
+    start: { lt: endDate },
+    end: { gt: startDate }
+  };
+  if (excludeEventId) {
+    overlapFilter.id = { not: excludeEventId };
+  }
+
+  const overlappingEvents = await prisma.event.findMany({
+    where: overlapFilter
+  });
+  if (overlappingEvents.length > 0) {
+    return { ok: false, message: "This timeslot is already booked" };
+  }
+
+  return { ok: true };
+}
 
 // Add at the top with other requires
 const registrationSessions = new Map();
@@ -392,16 +463,10 @@ app.post('/api/events', async (req, res) => {
       return res.status(400).json({ error: 'Invalid start date' });
     }
 
-    // Get day abbreviation: 0 = sun, 1 = mon, etc.
-    const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-    const dayAbbr = days[startDate.getDay()];
-
-    const availabilityRecord = await prisma.availability.findUnique({
-      where: { day: dayAbbr }
-    });
-
-    if (!availabilityRecord || !availabilityRecord.enabled) {
-      return res.status(400).json({ error: "Selected day is not available for booking" });
+    // Check for Availability and Exclusions and Prevent overlapping bookings
+    const check = await validateAvailabilityAndExclusions(startDate, endDate, prisma);
+    if (!check.ok) {
+      return res.status(400).json({ error: check.message });
     }
 
     // Convert available times to total minutes from midnight
@@ -561,16 +626,10 @@ app.put('/api/events/:id', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Invalid start date' });
     }
 
-    // Determine day abbreviation (0 = sun, 1 = mon, …)
-    const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-    const dayAbbr = days[startDate.getDay()];
-
-    // Retrieve availability record for that day
-    const availabilityRecord = await prisma.availability.findUnique({
-      where: { day: dayAbbr }
-    });
-    if (!availabilityRecord || !availabilityRecord.enabled) {
-      return res.status(400).json({ error: "Selected day is not available for booking" });
+    // Check for Availability and Exclusions and Prevent overlapping bookings
+    const check = await validateAvailabilityAndExclusions(startDate, endDate, prisma);
+    if (!check.ok) {
+      return res.status(400).json({ error: check.message });
     }
 
     // Convert available times to minutes from midnight

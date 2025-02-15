@@ -9,17 +9,11 @@ import EditEventModal from './EditEventModal';
 import { jwtDecode } from 'jwt-decode';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 dayjs.extend(utc);
+dayjs.extend(isSameOrBefore);
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
-
-// Converts a UTC time string to a local "HH:mm" string.
-function formatLocalTime(dateString) {
-  const d = new Date(dateString);
-  const hours = d.getHours().toString().padStart(2, '0');
-  const minutes = d.getMinutes().toString().padStart(2, '0');
-  return `${hours}:${minutes}`;
-}
 
 function Calendar() {
   const [events, setEvents] = useState([]);
@@ -90,6 +84,7 @@ function Calendar() {
       const res = await fetch(`${API_URL}/api/admin/availability`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      if (!res.ok) throw new Error('Failed to fetch availability');
       const data = await res.json();
       const availObj = {};
       data.forEach(rec => {
@@ -121,81 +116,133 @@ function Calendar() {
     fetchEvents();
     fetchAdminAvailability();
     fetchRawExclusions();
-    const interval = setInterval(fetchEvents, 2000);
+    const interval = setInterval(fetchEvents, 500);
     return () => clearInterval(interval);
   }, [navigate, token]);
 
-  // Generate background events based on admin availability and exclusions.
+  // -------------------- BACKGROUND EVENTS (AVAILABILITY + EXCLUSIONS) --------------------
   const generateBackgroundEvents = (info) => {
     let bgEvents = [];
-    const rangeStart = dayjs(info.start);
-    const rangeEnd = dayjs(info.end);
-    // First, generate background events for admin availability:
-    for (let d = rangeStart; d.isBefore(rangeEnd); d = d.add(1, 'day')) {
-      const dayAbbr = d.format('ddd').toLowerCase(); // e.g., "mon", "tue", etc.
-      const avail = adminAvailability[dayAbbr];
-      const dayStr = d.format('YYYY-MM-DD');
+    const rangeStartLocal = dayjs(info.start).startOf('day');
+    const rangeEndLocal = dayjs(info.end).startOf('day');
+
+    // ---- 1) AVAILABILITY (cross-midnight fix) ----
+    for (let dLocal = rangeStartLocal.clone(); dLocal.isBefore(rangeEndLocal); dLocal = dLocal.add(1, 'day')) {
+      // dLocal is the local "day" boundary (e.g. 00:00 local)
+      const dUtc = dLocal.clone().utc(); // the matching UTC day boundary
+      const dayAbbrUtc = dUtc.format('ddd').toLowerCase().slice(0,3);
+      const localDayStart = dLocal.clone().startOf('day');
+      const localDayEnd = dLocal.clone().endOf('day');
+      const avail = adminAvailability[dayAbbrUtc];
+
       if (!avail || !avail.enabled) {
-        // If not enabled, mark the whole day as unavailable.
+        // Entire day unavailable
         bgEvents.push({
-          id: `bg-${dayStr}`,
-          start: dayStr,
-          end: d.add(1, 'day').format('YYYY-MM-DD'),
+          id: `bg-disabled-${dLocal.format('YYYY-MM-DD')}`,
+          start: localDayStart.toISOString(),
+          end: localDayEnd.toISOString(),
           display: 'background',
-          backgroundColor: '#cccccc'
+          backgroundColor: '#e0e0e0'
+        });
+        continue;
+      }
+
+      // e.g. "23:00" -> startH=23, startM=0; "02:00" -> endH=2, endM=0
+      let [startH, startM] = avail.start.split(':').map(Number);
+      let [endH, endM] = avail.end.split(':').map(Number);
+
+      // Monday in UTC = 00:00 -> dayStartUtc
+      // Then add hours/minutes
+      let dayStartUtc = dUtc.clone().startOf('day');
+      let windowStartUtc = dayStartUtc.clone().add(startH, 'hour').add(startM, 'minute');
+      let windowEndUtc = dayStartUtc.clone().add(endH, 'hour').add(endM, 'minute');
+
+      // If end < start, assume cross-midnight => add 24h to end
+      if (windowEndUtc.isBefore(windowStartUtc)) {
+        windowEndUtc = windowEndUtc.add(1, 'day'); 
+      }
+
+      // Convert to local
+      let windowStartLocal = windowStartUtc.local();
+      let windowEndLocal = windowEndUtc.local();
+
+      // Now clamp the "available" window to this local day
+      // "available" = intersection of [windowStartLocal, windowEndLocal) and [localDayStart, localDayEnd)
+      let availStart = windowStartLocal.isAfter(localDayStart) ? windowStartLocal : localDayStart;
+      let availEnd = windowEndLocal.isBefore(localDayEnd) ? windowEndLocal : localDayEnd;
+
+      // If there's no overlap => shade entire day
+      if (availEnd.isSameOrBefore(availStart)) {
+        bgEvents.push({
+          id: `bg-disabled-${dLocal.format('YYYY-MM-DD')}`,
+          start: localDayStart.toISOString(),
+          end: localDayEnd.toISOString(),
+          display: 'background',
+          backgroundColor: '#e0e0e0'
         });
       } else {
-        // Mark the time before the available window:
-        bgEvents.push({
-          id: `bg-${dayStr}-morning`,
-          start: dayStr, // midnight by default
-          end: `${dayStr}T${avail.start}`,
-          display: 'background',
-          backgroundColor: '#cccccc'
-        });
-        // Mark the time after the available window:
-        bgEvents.push({
-          id: `bg-${dayStr}-evening`,
-          start: `${dayStr}T${avail.end}`,
-          end: d.add(1, 'day').format('YYYY-MM-DD'),
-          display: 'background',
-          backgroundColor: '#cccccc'
-        });
+        // Shade from midnight to availStart
+        if (availStart.isAfter(localDayStart)) {
+          bgEvents.push({
+            id: `bg-${dLocal.format('YYYY-MM-DD')}-before`,
+            start: localDayStart.toISOString(),
+            end: availStart.toISOString(),
+            display: 'background',
+            backgroundColor: '#e0e0e0'
+          });
+        }
+        // Shade from availEnd to midnight
+        if (availEnd.isBefore(localDayEnd)) {
+          bgEvents.push({
+            id: `bg-${dLocal.format('YYYY-MM-DD')}-after`,
+            start: availEnd.toISOString(),
+            end: localDayEnd.toISOString(),
+            display: 'background',
+            backgroundColor: '#e0e0e0'
+          });
+        }
       }
     }
 
-    // Next, generate background events for each exclusion:
+    // ---- 2) EXCLUSIONS (also stored as UTC) ----
     rawExclusions.forEach(ex => {
-      
-      // Use the provided exclusion dates.
-      const exStart = dayjs(ex.startDate);
-      const exEnd = ex.endDate ? dayjs(ex.endDate) : exStart;
-      // Loop over each day in the visible range that falls within the exclusion.
-      for (let d = rangeStart; d.isBefore(rangeEnd); d = d.add(1, 'day')) {
-        if (d.isBefore(exStart, 'day') || d.isAfter(exEnd, 'day')) continue;
-        // Determine effective times for this day.
-        let effectiveStart = "00:00";
-        let effectiveEnd = "24:00";
-        if (d.isSame(exStart, 'day') && ex.startTime) {
-          effectiveStart = formatLocalTime(ex.startTime);
-        }
-        if (d.isSame(exEnd, 'day') && ex.endTime) {
-          effectiveEnd = formatLocalTime(ex.endTime);
-        }
-        const dayStr = d.format('YYYY-MM-DD');
-        let eventStart = `${dayStr}T${effectiveStart}`;
-        let eventEnd = effectiveEnd === "24:00" 
-          ? d.add(1, 'day').format('YYYY-MM-DD') 
-          : `${dayStr}T${effectiveEnd}`;
+      // Combine the date/time fields as UTC
+      const exStartUtc = dayjs.utc(`${ex.startDate}T${ex.startTime}`);
+      const exEndUtc = ex.endDate 
+        ? dayjs.utc(`${ex.endDate}T${ex.endTime}`)
+        : exStartUtc;
+
+      // Convert to local
+      const exStartLocal = exStartUtc.local();
+      const exEndLocal = exEndUtc.local();
+
+      // Skip if entirely outside the visible local range
+      if (exEndLocal.isBefore(rangeStartLocal) || exStartLocal.isAfter(rangeEndLocal)) return;
+
+      // For each local day in [rangeStartLocal, rangeEndLocal)
+      for (let d2 = rangeStartLocal.clone(); d2.isBefore(rangeEndLocal); d2 = d2.add(1, 'day')) {
+        const dayStart = d2.clone().startOf('day');
+        const dayEnd = d2.clone().endOf('day');
+
+        if (dayEnd.isBefore(exStartLocal) || dayStart.isAfter(exEndLocal)) continue;
+
+        // Overlap
+        const clampStart = exStartLocal.isAfter(dayStart) ? exStartLocal : dayStart;
+        const clampEnd = exEndLocal.isBefore(dayEnd) ? exEndLocal : dayEnd;
+
         bgEvents.push({
-          id: `ex-${ex.id}-${dayStr}`,
-          start: eventStart,
-          end: eventEnd,
+          id: `ex-${ex.id}-${d2.format('YYYY-MM-DD')}`,
+          start: clampStart.toISOString(),
+          // If it exactly hits dayEnd, push it to next day’s 00:00 so it doesn’t label “12 AM”
+          end: clampEnd.isSame(dayEnd)
+            ? d2.clone().add(1, 'day').startOf('day').toISOString()
+            : clampEnd.toISOString(),
           display: 'background',
-          backgroundColor: '#cccccc'
+          backgroundColor: '#e0e0e0'
         });
       }
     });
+
     setBackgroundEvents(bgEvents);
   };
 
@@ -314,7 +361,7 @@ function Calendar() {
       <FullCalendar
         ref={calendarRef}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-        initialView="dayGridMonth"
+        initialView="timeGridWeek"
         timeZone="local"
         selectable={true}
         // Merge admin events with background events.
@@ -325,7 +372,7 @@ function Calendar() {
         allDaySlot={false}
         headerToolbar={{
           left: 'title',
-          center: 'dayGridMonth,timeGridWeek,dayGridDay',
+          center: 'timeGridWeek,dayGridDay',
           right: 'prev today next'
         }}
         eventContent={(eventInfo) => {

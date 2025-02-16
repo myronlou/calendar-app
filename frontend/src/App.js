@@ -9,6 +9,7 @@ import AdminLayout from './AdminLayout';
 import Availability from './Availability';
 import BookingTypes from './BookingTypes';
 import Calendar from './Calendar';
+import UpcomingBookings from './UpcomingBookings';
 
 // Public Components
 import HomePage from './HomePage';
@@ -196,6 +197,7 @@ function App() {
             <Route path="calendar" element={<Calendar />} />
             <Route path="availability" element={<Availability />} />
             <Route path="booking-types" element={<BookingTypes />} />
+            <Route path="upcoming-bookings" element={<UpcomingBookings />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

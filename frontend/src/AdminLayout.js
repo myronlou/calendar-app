@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
-import { FaCalendarAlt, FaClock, FaListAlt, FaSignOutAlt, FaColumns } from "react-icons/fa";
+import { FaCalendarAlt, FaClock, FaListAlt, FaSignOutAlt, FaColumns, FaBookOpen } from "react-icons/fa";
 import "./AdminLayout.css";
 
 export default function AdminLayout() {
@@ -13,6 +13,7 @@ export default function AdminLayout() {
   // Menu items with icons
   const menuItems = [
     { path: "calendar", label: "Calendar", icon: <FaCalendarAlt /> },
+    { path: "upcoming-bookings", label: "Upcoming Bookings", icon: <FaBookOpen /> },
     { path: "availability", label: "Availability", icon: <FaClock /> },
     { path: "booking-types", label: "Booking Types", icon: <FaListAlt /> },
   ];

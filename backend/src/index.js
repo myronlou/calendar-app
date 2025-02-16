@@ -862,7 +862,7 @@ app.put('/api/admin/events/:id', authMiddleware, adminMiddleware, async (req, re
       where: { id: eventId },
       data: {
         start: startDate,
-        end: computedEndDate,
+        end: endDate,
         fullName: fullName.trim(),
         email: email.trim(),
         phone: phone.trim(),

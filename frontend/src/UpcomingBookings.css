@@ -1,0 +1,148 @@
+/* ===== Container for Upcoming Bookings Page ===== */
+.upcoming-bookings-admin-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: Arial, sans-serif;
+    color: #000;
+    background-color: #fff;
+  }
+  
+  /* ===== Header Section (similar to BookingTypes) ===== */
+  .header-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+  }
+  
+  .header-section h2 {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+  }
+  
+  .header-section p {
+    margin: 0.25rem 0 0;
+    color: #666;
+    font-size: 0.95rem;
+  }
+  
+  /* The "+ New" button */
+  .new-btn {
+    background-color: #000;
+    color: #fff;
+    border: none;
+    padding: 0.7rem 1.2rem;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  .new-btn:hover {
+    background-color: #333;
+  }
+  
+  /* ===== Error Message ===== */
+  .error-msg {
+    background-color: #ffe6e6;
+    color: #d8000c;
+    padding: 0.75rem 1rem;
+    border-left: 4px solid #d8000c;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+  }
+  
+  /* ===== Upcoming Bookings List ===== */
+  .upcoming-bookings-list {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 0.7rem 1.5rem;
+  }
+  
+  .empty-list {
+    text-align: center;
+    padding: 1rem;
+    color: #777;
+  }
+  
+  /* Each booking item row */
+  .upcoming-booking-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #eee;
+    padding: 0.7rem 0;
+  }
+  .upcoming-booking-item:last-child {
+    border-bottom: none;
+  }
+  
+  /* Color Dot on the left (mimics BookingTypes) */
+  .color-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 1rem;
+    flex-shrink: 0;
+  }
+  
+  /* Info about the booking */
+  .booking-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+  .booking-name {
+    font-weight: 600;
+    font-size: 1rem;
+  }
+  .booking-meta {
+    color: #999;
+    font-weight: normal;
+    margin-left: 0.3rem;
+    font-size: 0.9rem;
+  }
+  .booking-description {
+    margin-top: 0.3rem;
+    color: #666;
+    display: flex;
+    flex-direction: column;
+    font-size: 0.9rem;
+  }
+  
+  /* Actions (Edit / Delete) */
+  .actions button {
+    background: none;
+    border: none;
+    color: #000;
+    cursor: pointer;
+    margin-left: 0.75rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .actions button:hover {
+    color: #FFC72C; /* or your accent color */
+  }
+  .actions .delete-btn:hover {
+    color: red; /* Make Delete stand out in red */
+  }
+  
+  /* ===== Responsive Adjustments ===== */
+  @media (max-width: 600px) {
+    .upcoming-booking-item {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+    .actions {
+      margin-left: auto;
+    }
+    .header-section {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+  }
+  

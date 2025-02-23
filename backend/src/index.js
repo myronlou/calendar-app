@@ -397,12 +397,12 @@ app.post('/api/events', async (req, res) => {
   try {
     const { eventData, token } = req.body;
 
-    // Validate request structure
+    // 1) Validate request structure
     if (!token || !eventData) {
       return res.status(400).json({ error: 'Invalid request format' });
     }
 
-    // Verify JWT token
+    // 2) Verify JWT token
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -411,6 +411,7 @@ app.post('/api/events', async (req, res) => {
       return res.status(401).json({ error: 'Invalid or expired verification token' });
     }
 
+    // 3) Determine the user’s email (either from userId or from OTP claims)
     let emailToUse;
     if (decoded.userId) {
       // Authenticated user flow
@@ -432,12 +433,11 @@ app.post('/api/events', async (req, res) => {
       emailToUse = eventData.email.toLowerCase();
     }
 
-    // Validate required fields
+    // 4) Validate required fields
     const requiredFields = ['start', 'fullName', 'phone', 'bookingTypeId'];
     if (!decoded.userId) {
       requiredFields.push('email');
     }
-    
     const missingFields = requiredFields.filter(field => !eventData[field]);
     if (missingFields.length > 0) {
       return res.status(400).json({
@@ -445,62 +445,102 @@ app.post('/api/events', async (req, res) => {
       });
     }
 
-    // Validate email format
+    // 5) Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(eventData.email)) {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
-    // Validate phone format (e.g., +852 12345678)
+    // 6) Validate phone format (e.g., +852 12345678)
     const phoneRegex = /^\+\d{1,3} \d{8,15}$/;
     if (!phoneRegex.test(eventData.phone)) {
       return res.status(400).json({ error: 'Invalid phone number format' });
     }
 
-    // Parse the event start date and validate
+    // 7) Parse the booking type to get duration (in minutes)
+    const bookingTypeId = parseInt(eventData.bookingTypeId, 10);
+    const bookingType = await prisma.bookingType.findUnique({
+      where: { id: bookingTypeId }
+    });
+    if (!bookingType) {
+      return res.status(400).json({ error: 'Invalid booking type' });
+    }
+
+    // 8) Parse the event start date/time (assume it's an ISO UTC string, e.g. "2025-09-06T09:00:00.000Z")
     const startDate = new Date(eventData.start);
     if (isNaN(startDate.getTime())) {
       return res.status(400).json({ error: 'Invalid start date' });
     }
 
-    // Check for Availability and Exclusions and Prevent overlapping bookings
-    const check = await validateAvailabilityAndExclusions(startDate, endDate, prisma);
-    if (!check.ok) {
-      return res.status(400).json({ error: check.message });
-    }
-
-    // Convert available times to total minutes from midnight
-    const [availStartHour, availStartMinute] = availabilityRecord.start.split(':').map(Number);
-    const [availEndHour, availEndMinute] = availabilityRecord.end.split(':').map(Number);
-    const availStartTotal = availStartHour * 60 + availStartMinute;
-    const availEndTotal = availEndHour * 60 + availEndMinute;
-
-    // Check that the chosen start time is within availability
-    const chosenStartTotal = startDate.getHours() * 60 + startDate.getMinutes();
-    if (chosenStartTotal < availStartTotal || chosenStartTotal >= availEndTotal) {
-      return res.status(400).json({ error: "Selected start time is outside available booking hours" });
-    }
-
-    // Use bookingTypeId to determine event title and duration
-    const bookingType = await prisma.bookingType.findUnique({
-      where: { id: parseInt(eventData.bookingTypeId) }
-    });
-    if (!bookingType) {
-      return res.status(400).json({ error: 'Invalid booking type' });
-    }
-    // Compute the event's end time based on the booking type's duration.
+    // Compute the end date based on the booking type’s duration
     const endDate = new Date(startDate.getTime() + bookingType.duration * 60 * 1000);
-    const chosenEndTotal = endDate.getHours() * 60 + endDate.getMinutes();
-    if (chosenEndTotal > availEndTotal) {
-      return res.status(400).json({ error: "The booking duration exceeds available booking hours for that day" });
+
+    // 9) Ensure the event is in the future or at least not fully in the past
+    const now = new Date();
+    if (endDate <= now) {
+      return res.status(400).json({ error: 'Booking time is already in the past' });
     }
 
-    // Check if a user with emailToUse exists (for linking purposes)
+    // 10) Figure out the day’s availability (in UTC)
+    // Extract year, month, day in UTC from startDate
+    const year = startDate.getUTCFullYear();
+    const month = startDate.getUTCMonth();
+    const day = startDate.getUTCDate();
+
+    // Build a date at UTC midnight for that day
+    const dayAtMidnightUTC = new Date(Date.UTC(year, month, day, 0, 0, 0));
+    const dayIndexUTC = dayAtMidnightUTC.getUTCDay(); // 0=Sun,...6=Sat
+    const dayAbbr = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][dayIndexUTC];
+
+    const availability = await prisma.availability.findUnique({
+      where: { day: dayAbbr }
+    });
+    if (!availability || !availability.enabled) {
+      return res.status(400).json({ error: 'This day is not available for booking' });
+    }
+
+    // 11) Build the day’s start/end in UTC from availability
+    const [availStartHour, availStartMin] = availability.start.split(':').map(Number);
+    const [availEndHour,   availEndMin]   = availability.end.split(':').map(Number);
+
+    const dayStart = new Date(Date.UTC(year, month, day, availStartHour, availStartMin, 0));
+    const dayEnd   = new Date(Date.UTC(year, month, day, availEndHour,   availEndMin,   0));
+
+    // If the booking extends beyond dayEnd or starts before dayStart, reject
+    if (startDate < dayStart || endDate > dayEnd) {
+      return res.status(400).json({ error: 'Selected time is outside available booking hours' });
+    }
+
+    // 12) Check exclusions overlap
+    // Overlap if (exclusion.start < endDate) && (exclusion.end > startDate)
+    const exclusions = await prisma.exclusion.findMany({
+      where: {
+        start: { lt: endDate },
+        end: { gt: startDate }
+      }
+    });
+    if (exclusions.length > 0) {
+      return res.status(400).json({ error: 'Selected time is excluded from booking' });
+    }
+
+    // 13) Check existing events overlap
+    // Overlap if (event.start < endDate) && (event.end > startDate)
+    const overlappingEvents = await prisma.event.findMany({
+      where: {
+        start: { lt: endDate },
+        end: { gt: startDate }
+      }
+    });
+    if (overlappingEvents.length > 0) {
+      return res.status(400).json({ error: 'This timeslot is already booked' });
+    }
+
+    // 14) If we reach here, the entire block [startDate, endDate] is valid. Proceed to create.
+    // Link the event to an existing user if the email matches one
     const existingUser = await prisma.user.findUnique({
       where: { email: emailToUse }
     });
 
-    // Create event in database
     const event = await prisma.event.create({
       data: {
         bookingTypeId: bookingType.id,
@@ -513,25 +553,24 @@ app.post('/api/events', async (req, res) => {
       }
     });
 
-    const now = Date.now();
-    const eventStartTime = new Date(event.start).getTime();
-    let expiresInSeconds = Math.floor((eventStartTime - now) / 1000);
+    // 15) Generate a management token for the new event
+    const nowMs = Date.now();
+    const eventStartMs = event.start.getTime();
+    let expiresInSeconds = Math.floor((eventStartMs - nowMs) / 1000);
     if (expiresInSeconds <= 0) {
-      // If the event is starting soon or already started, set a minimal expiry time.
-      expiresInSeconds = 60;
+      expiresInSeconds = 60; // minimal expiry if event is soon
     }
 
-    // Generate management token
     const managementToken = jwt.sign(
-      { 
-        email: eventData.email.toLowerCase(),
+      {
+        email: emailToUse,
         eventId: event.id
       },
       process.env.JWT_SECRET,
       { expiresIn: expiresInSeconds }
-    );    
+    );
 
-    // Send confirmation email
+    // 16) Optionally send booking confirmation email
     await sendBookingConfirmation(
       event.email,
       bookingType.name,
@@ -543,7 +582,7 @@ app.post('/api/events', async (req, res) => {
       }
     );
 
-    res.json({
+    return res.json({
       success: true,
       event: {
         id: event.id,
@@ -556,7 +595,7 @@ app.post('/api/events', async (req, res) => {
   } catch (error) {
     console.error('Event creation error:', error);
 
-    // Handle specific error types
+    // Handle known Prisma errors
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       return res.status(400).json({
         error: 'Database error',
@@ -569,10 +608,173 @@ app.post('/api/events', async (req, res) => {
       return res.status(401).json({ error: 'Verification token expired' });
     }
 
-    res.status(500).json({ 
+    return res.status(500).json({
       error: 'Booking creation failed',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
+  }
+});
+
+
+//Get all the available timeslots for booking (authenticated + guest)
+app.get('/api/events/available', async (req, res) => {
+  try {
+    const { date, bookingTypeId } = req.query;
+    if (!date || !bookingTypeId) {
+      return res.status(400).json({ error: "Missing 'date' (YYYY-MM-DD) or 'bookingTypeId' query param" });
+    }
+
+    // Parse the date as a UTC day
+    const [year, month, day] = date.split('-').map(Number);
+    if (!year || !month || !day) {
+      return res.status(400).json({ error: "Invalid date format" });
+    }
+
+    // Fetch the bookingType to get its duration (in minutes)
+    const bookingType = await prisma.bookingType.findUnique({
+      where: { id: parseInt(bookingTypeId, 10) }
+    });
+    if (!bookingType) {
+      return res.status(400).json({ error: "Invalid bookingTypeId" });
+    }
+    const bookingDurationMinutes = bookingType.duration; // e.g. 120 for 2 hours
+
+    // We'll interpret the user-chosen date in UTC, e.g. "2025-09-06" => 2025-09-06T00:00:00Z
+    const dayAtMidnightUTC = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+
+    // If day is fully in the past from a UTC perspective, return no times
+    const now = new Date(); // 'now' in system UTC
+    const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    if (dayAtMidnightUTC < todayUTC) {
+      // Entire date is before today's UTC date
+      return res.json({ availableTimes: [] });
+    }
+
+    // 1) Check which weekday it is in UTC
+    const dayIndexUTC = dayAtMidnightUTC.getUTCDay(); // 0=Sun,1=Mon,...
+    const dayAbbr = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][dayIndexUTC];
+
+    // 2) Find the availability record for that weekday
+    const availability = await prisma.availability.findUnique({
+      where: { day: dayAbbr }
+    });
+    if (!availability || !availability.enabled) {
+      return res.json({ availableTimes: [] });
+    }
+
+    // Parse the availability start/end times as UTC times
+    const [availStartHour, availStartMin] = availability.start.split(':').map(Number);
+    const [availEndHour,   availEndMin]   = availability.end.split(':').map(Number);
+
+    // Construct the day's availability window in UTC
+    let dayStart = new Date(Date.UTC(year, month - 1, day, availStartHour, availStartMin, 0));
+    let dayEnd   = new Date(Date.UTC(year, month - 1, day, availEndHour,   availEndMin,   0));
+
+    // If dayEnd is already past 'now', or the day is fully ended, check
+    if (dayEnd <= now) {
+      return res.json({ availableTimes: [] });
+    }
+
+    // If dayStart is before 'now', shift dayStart to the next 30-min block
+    if (dayStart < now) {
+      const currentUTCMinutes = now.getUTCMinutes();
+      const remainder = currentUTCMinutes % 30;
+      const newMinutes = remainder === 0 ? currentUTCMinutes : currentUTCMinutes + (30 - remainder);
+
+      dayStart = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        now.getUTCHours(),
+        newMinutes,
+        0
+      ));
+      if (dayStart >= dayEnd) {
+        return res.json({ availableTimes: [] });
+      }
+    }
+
+    // 3) Fetch exclusions that overlap [dayStart, dayEnd]
+    const exclusions = await prisma.exclusion.findMany({
+      where: {
+        start: { lte: dayEnd },
+        end:   { gte: dayStart }
+      }
+    });
+
+    // 4) Fetch events that overlap [dayStart, dayEnd]
+    const events = await prisma.event.findMany({
+      where: {
+        start: { lt: dayEnd },
+        end:   { gt: dayStart }
+      }
+    });
+
+    // Helper to check overlap between [startA, endA] and [startB, endB]
+    const isOverlapping = (startA, endA, startB, endB) => {
+      return startA < endB && endA > startB;
+    };
+
+    // We'll build timeslots in 30-min increments for the *start* time,
+    // but for each potential start, the *end* time is (start + bookingDuration).
+    // If that end goes beyond dayEnd, we break. Then we check if that range
+    // is excluded or overlaps an event.
+
+    const freeTimes = [];
+    let current = new Date(dayStart);
+
+    while (current < dayEnd) {
+      // The event would run from slotStart to slotEnd, where slotEnd = slotStart + bookingDuration
+      const slotStart = new Date(current);
+      const slotEnd = new Date(current.getTime() + bookingDurationMinutes * 60 * 1000);
+
+      // If this extends beyond the dayEnd, no further slots can fit
+      if (slotEnd > dayEnd) {
+        break;
+      }
+
+      // Check exclusions
+      let isExcluded = false;
+      for (const ex of exclusions) {
+        const exStart = new Date(ex.start); // UTC
+        const exEnd   = ex.end ? new Date(ex.end) : new Date('9999-12-31');
+        if (isOverlapping(slotStart, slotEnd, exStart, exEnd)) {
+          isExcluded = true;
+          break;
+        }
+      }
+      if (isExcluded) {
+        // Move to next 30-min block
+        current = new Date(current.getTime() + 30 * 60 * 1000);
+        continue;
+      }
+
+      // Check existing events
+      let isOccupied = false;
+      for (const evt of events) {
+        const evtStart = new Date(evt.start);
+        const evtEnd   = new Date(evt.end);
+        if (isOverlapping(slotStart, slotEnd, evtStart, evtEnd)) {
+          isOccupied = true;
+          break;
+        }
+      }
+      if (!isOccupied) {
+        // This entire block is free
+        const hh = String(slotStart.getUTCHours()).padStart(2, '0');
+        const mm = String(slotStart.getUTCMinutes()).padStart(2, '0');
+        freeTimes.push(`${hh}:${mm}`);
+      }
+
+      // Move to the next half-hour for the *start*
+      current = new Date(current.getTime() + 30 * 60 * 1000);
+    }
+
+    return res.json({ availableTimes: freeTimes });
+
+  } catch (error) {
+    console.error("Error fetching available times:", error);
+    return res.status(500).json({ error: "Failed to fetch available times" });
   }
 });
 

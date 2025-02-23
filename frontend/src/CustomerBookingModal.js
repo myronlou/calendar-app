@@ -1,15 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
+import Calendar from 'react-calendar';
+import 'react-calendar/dist/Calendar.css';
+
 import loadingGif from './gif/loading.gif';
 import './CustomerBookingModal.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
+function utcToLocalTimeLabel(utcHHmm, dateYYYYMMDD) {
+  const [year, month, day] = dateYYYYMMDD.split('-').map(Number);
+  const [utcH, utcM] = utcHHmm.split(':').map(Number);
+
+  const utcDate = new Date(Date.UTC(year, month - 1, day, utcH, utcM, 0));
+  const localH = utcDate.getHours();
+  const localM = utcDate.getMinutes();
+
+  return `${String(localH).padStart(2, '0')}:${String(localM).padStart(2, '0')}`;
+}
+
+function localToUTCISO(dateYYYYMMDD, localHHmm) {
+  const [year, month, day] = dateYYYYMMDD.split('-').map(Number);
+  const [h, m] = localHHmm.split(':').map(Number);
+
+  const localDate = new Date(year, month - 1, day, h, m, 0);
+  return localDate.toISOString();
+}
+
 function CustomerBookingModal({ isOpen, onClose }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [emailError, setEmailError] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [animationDirection, setAnimationDirection] = useState('next');
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [bookingSuccess, setBookingSuccess] = useState(false);
+
+  // Basic form data
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -17,17 +45,21 @@ function CustomerBookingModal({ isOpen, onClose }) {
     date: '',
     time: '',
   });
+
+  // OTP
   const [otp, setOtp] = useState('');
-  const [bookingSuccess, setBookingSuccess] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [animationDirection, setAnimationDirection] = useState('next');
-  const [isRegenerating, setIsRegenerating] = useState(false);
-  
-  // New state for booking types
+
+  // Booking Types
   const [bookingTypes, setBookingTypes] = useState([]);
   const [selectedType, setSelectedType] = useState('');
 
-  // Fetch available booking types on mount
+  // Timeslots
+  const [timeSlots, setTimeSlots] = useState([]);
+
+  // React-Calendar
+  const [calendarDate, setCalendarDate] = useState(null);
+
+  // Fetch booking types on mount
   useEffect(() => {
     const fetchBookingTypes = async () => {
       try {
@@ -42,15 +74,41 @@ function CustomerBookingModal({ isOpen, onClose }) {
     fetchBookingTypes();
   }, []);
 
+  // Validate email
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     setEmailError(emailRegex.test(email) ? '' : 'Invalid email format');
   };
 
+  // Close modal & reset
+  const handleClose = () => {
+    setCurrentStep(1);
+    setIsLoading(false);
+    setEmailError('');
+    setErrorMessage('');
+    setAnimationDirection('next');
+    setIsRegenerating(false);
+    setBookingSuccess(false);
+
+    setFormData({
+      fullName: '',
+      email: '',
+      phone: '',
+      date: '',
+      time: '',
+    });
+    setOtp('');
+    setSelectedType('');
+    setTimeSlots([]);
+    setCalendarDate(null);
+
+    onClose();
+  };
+
+  // Regenerate OTP
   const handleRegenerateOtp = async () => {
     setIsRegenerating(true);
     setErrorMessage('');
-    
     try {
       const response = await fetch(`${API_URL}/api/otp/generate`, {
         method: 'POST',
@@ -60,7 +118,6 @@ function CustomerBookingModal({ isOpen, onClose }) {
           type: 'booking'
         }),
       });
-
       if (!response.ok) throw new Error('Failed to send new code');
       setErrorMessage('New verification code sent successfully');
     } catch (error) {
@@ -70,36 +127,20 @@ function CustomerBookingModal({ isOpen, onClose }) {
     }
   };
 
-  const handleClose = () => {
-    setCurrentStep(1);
-    setIsLoading(false);
-    setEmailError('');
-    setFormData({
-      fullName: '',
-      email: '',
-      phone: '',
-      date: '',
-      time: '',
-    });
-    setOtp('');
-    setBookingSuccess(false);
-    setErrorMessage('');
-    onClose();
-  };
-
+  // Step validations
   const isStep1Valid = () => {
     const { fullName, email, phone } = formData;
     return (
       fullName.trim() &&
       email.trim() &&
       phone.trim() &&
-      selectedType && // booking type must be selected
+      selectedType &&
       !emailError
     );
   };
-
   const isStep2Valid = () => formData.date && formData.time;
 
+  // Step nav
   const handleNext = async () => {
     if (isLoading) return;
     setAnimationDirection('next');
@@ -113,13 +154,14 @@ function CustomerBookingModal({ isOpen, onClose }) {
           return;
         }
         setCurrentStep(2);
+
       } else if (currentStep === 2) {
         if (!isStep2Valid()) {
           setErrorMessage('Please select both date and time');
           return;
         }
-        // Generate booking OTP
-        const otpResponse = await fetch(`${API_URL}/api/otp/generate`, {
+        // Generate OTP
+        const otpRes = await fetch(`${API_URL}/api/otp/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -127,20 +169,18 @@ function CustomerBookingModal({ isOpen, onClose }) {
             type: 'booking'
           }),
         });
-
-        if (!otpResponse.ok) {
+        if (!otpRes.ok) {
           throw new Error('Failed to send verification code');
         }
-
         setCurrentStep(3);
+
       } else if (currentStep === 3) {
         if (!otp) {
           setErrorMessage('Please enter the OTP');
           return;
         }
-
-        // Verify booking OTP
-        const verifyResponse = await fetch(`${API_URL}/api/otp/verify`, {
+        // Verify OTP
+        const verifyRes = await fetch(`${API_URL}/api/otp/verify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -149,38 +189,29 @@ function CustomerBookingModal({ isOpen, onClose }) {
             type: 'booking'
           }),
         });
-
-        if (!verifyResponse.ok) {
+        if (!verifyRes.ok) {
           throw new Error('Invalid or expired verification code');
         }
+        const { token } = await verifyRes.json();
 
-        const { token } = await verifyResponse.json();
-
-        // Create event after OTP verification
-        const startISO = new Date(`${formData.date}T${formData.time}:00`).toISOString();
-
+        // Create event
+        const startISO = localToUTCISO(formData.date, formData.time);
         const eventPayload = {
           eventData: {
             ...formData,
-            // Omit formData.title if it exists
-            bookingTypeId: selectedType, // send the booking type identifier
-            start: startISO,
-            // "end" can be optionally computed on the client for display purposes,
-            // but will be overridden on the server.
+            bookingTypeId: selectedType,
+            start: startISO
           },
-          token: token
+          token
         };
-
         const eventResponse = await fetch(`${API_URL}/api/events`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(eventPayload),
         });
-
         if (!eventResponse.ok) {
           throw new Error(await eventResponse.text());
         }
-
         setBookingSuccess(true);
         setCurrentStep(4);
       }
@@ -193,9 +224,10 @@ function CustomerBookingModal({ isOpen, onClose }) {
 
   const handleBack = () => {
     setAnimationDirection('prev');
-    setCurrentStep(prev => Math.max(1, prev - 1));
+    setCurrentStep((prev) => Math.max(1, prev - 1));
   };
 
+  // Press Enter to proceed
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !isLoading) {
       e.preventDefault();
@@ -203,22 +235,65 @@ function CustomerBookingModal({ isOpen, onClose }) {
     }
   };
 
+  // Fetch times
+  const fetchAvailableTimes = async (chosenDate, bookingTypeId) => {
+    try {
+      setErrorMessage('');
+      setTimeSlots([]);
+      if (!chosenDate || !bookingTypeId) return;
+
+      const url = `${API_URL}/api/events/available?date=${chosenDate}&bookingTypeId=${bookingTypeId}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to load available times');
+      const data = await res.json();
+
+      const mapped = (data.availableTimes || []).map((utcString) => {
+        const localLabel = utcToLocalTimeLabel(utcString, chosenDate);
+        return { utc: utcString, local: localLabel };
+      });
+      setTimeSlots(mapped);
+    } catch (error) {
+      setErrorMessage(error.message);
+      setTimeSlots([]);
+    }
+  };
+
+  // React-Calendar
+  const handleCalendarChange = (date) => {
+    setCalendarDate(date);
+    if (!date) {
+      setFormData({ ...formData, date: '', time: '' });
+      setTimeSlots([]);
+      return;
+    }
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    const isoDate = `${yyyy}-${mm}-${dd}`;
+
+    setFormData({ ...formData, date: isoDate, time: '' });
+    setTimeSlots([]);
+
+    if (selectedType) {
+      fetchAvailableTimes(isoDate, selectedType);
+    }
+  };
+
   if (!isOpen) return null;
+
+  // If step2 => bigger width
+  const modalClasses = `modal-content ${currentStep === 2 ? 'step2-expanded' : ''}`;
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content">
+      <div className={modalClasses}>
         <button onClick={handleClose} className="close-button">×</button>
 
-        <form onSubmit={(e) => e.preventDefault()} onKeyDown={handleKeyPress}></form>
-
-        <h2 className="modal-title" style={{ color: '#000' }}>
-          Book Your Appointment
-        </h2>
-
+        <h2 className="modal-title">Book Your Appointment</h2>
         {errorMessage && <p className="error-message">{errorMessage}</p>}
 
         <div className={`animation-container ${animationDirection}`}>
+          {/* STEP 1 */}
           {currentStep === 1 && (
             <div className="step-content">
               <div className="input-group">
@@ -255,7 +330,7 @@ function CustomerBookingModal({ isOpen, onClose }) {
                   country={'hk'}
                   value={formData.phone}
                   required
-                  onChange={(phone, country) => 
+                  onChange={(phone, country) =>
                     setFormData({
                       ...formData,
                       phone: `+${country.dialCode} ${phone.replace(country.dialCode, '')}`
@@ -284,41 +359,113 @@ function CustomerBookingModal({ isOpen, onClose }) {
             </div>
           )}
 
+          {/* STEP 2 => 3-column layout */}
           {currentStep === 2 && (
-            <div className="step-content">
-              <div className="input-group">
-                <label>Date:</label>
-                <input
-                  type="date"
-                  value={formData.date}
-                  required
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  onKeyDown={handleKeyPress}
+            <div className="step-content booking-layout">
+              {/* LEFT PANEL */}
+              <div className="left-panel">
+                <h3 className="booking-title">
+                  {bookingTypes.find(bt => bt.id === parseInt(selectedType))?.name || 'Booking'}
+                </h3>
+                <p className="booking-subtitle">
+                  {bookingTypes.find(bt => bt.id === parseInt(selectedType))?.duration} mins
+                </p>
+                <p className="booking-subtitle">
+                  Time Zone: {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                </p>
+                <div className="booking-info">
+                  <p><strong>Name:</strong> {formData.fullName}</p>
+                  <p><strong>Email:</strong> {formData.email}</p>
+                  <p><strong>Phone:</strong> {formData.phone}</p>
+                </div>
+              </div>
+
+              {/* MIDDLE PANEL => React-Calendar with custom navigation */}
+              <div className="middle-panel">
+                <Calendar
+                  onChange={handleCalendarChange}
+                  value={calendarDate}
+                  minDate={new Date()}
+                  /* Force Monday as first day of week */
+                  calendarType="iso8601"
+                  /* e.g. "en-GB" so Monday is day 1, adjust to your locale if needed */
+                  locale="en-GB"
+
+                  /* Hide default prev/next labels, we'll use custom nav below */
+                  prevLabel={null}
+                  nextLabel={null}
+                  prev2Label={null}
+                  next2Label={null}
+
+                  /* Provide a custom navigation bar */
+                  renderNavigation={({
+                    activeStartDate,
+                    label,
+                    onClickNext,
+                    onClickPrev,
+                  }) => (
+                    <div className="custom-calendar-nav">
+                      {/* Left arrow for previous month */}
+                      <button
+                        className="calendar-nav-btn"
+                        onClick={onClickPrev}
+                        aria-label="Previous Month"
+                      >
+                        &lt;
+                      </button>
+                      
+                      {/* Center: Month + Year (label) */}
+                      <span className="calendar-month-year">{label}</span>
+                      
+                      {/* Right arrow for next month */}
+                      <button
+                        className="calendar-nav-btn"
+                        onClick={onClickNext}
+                        aria-label="Next Month"
+                      >
+                        &gt;
+                      </button>
+                    </div>
+                  )}
                 />
               </div>
 
-              <div className="input-group">
-                <label>Time:</label>
-                <input
-                  type="time"
-                  value={formData.time}
-                  required
-                  onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                  onKeyDown={handleKeyPress}
-                />
+              {/* RIGHT PANEL => Timeslots */}
+              <div className="right-panel">
+                <h4 className="time-title">
+                  {formData.date
+                    ? `Available Times on ${formData.date}`
+                    : 'Select a Date'}
+                </h4>
+                {timeSlots.length > 0 ? (
+                  <div className="timeslot-container">
+                    {timeSlots.map(({ utc, local }) => (
+                      <button
+                        key={utc}
+                        type="button"
+                        className={`timeslot-btn ${formData.time === local ? 'active' : ''}`}
+                        onClick={() => setFormData({ ...formData, time: local })}
+                      >
+                        {local}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="no-times-msg">
+                    {formData.date ? 'No times available for this date' : 'Please select a date'}
+                  </p>
+                )}
               </div>
-              <p className="duration-note">
-                * Appointment duration is determined by the selected booking type
-              </p>
             </div>
           )}
 
+          {/* STEP 3 => OTP */}
           {currentStep === 3 && (
             <div className="step-content">
               <p className="otp-instruction">
                 Verification code sent to <strong>{formData.email}</strong>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={handleRegenerateOtp}
                   disabled={isRegenerating}
                   className="regenerate-button"
@@ -342,21 +489,28 @@ function CustomerBookingModal({ isOpen, onClose }) {
             </div>
           )}
 
+          {/* STEP 4 => Success */}
           {currentStep === 4 && (
             <div className="step-content success-content">
               <h3 className="success-message">✓ Appointment Confirmed!</h3>
-              <p className="success-text">Thank you for your booking!</p>
+              <p className="success-text">
+                Thank you for your booking!<br />
+                <strong>Booking Type:</strong>{' '}
+                {bookingTypes.find(bt => bt.id === parseInt(selectedType))?.name || ''}<br />
+                <strong>Date:</strong> {formData.date}<br />
+                <strong>Time:</strong> {formData.time}
+              </p>
             </div>
           )}
         </div>
 
+        {/* NAV BUTTONS */}
         <div className="button-container">
           {currentStep > 1 && currentStep < 4 && (
             <button className="back-button" onClick={handleBack}>
               Back
             </button>
           )}
-
           <div className="action-buttons">
             {currentStep < 4 ? (
               <button

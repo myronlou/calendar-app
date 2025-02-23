@@ -16,6 +16,7 @@ export default function AdminLayout() {
     { path: "upcoming-bookings", label: "Upcoming Bookings", icon: <FaBookOpen /> },
     { path: "availability", label: "Availability", icon: <FaClock /> },
     { path: "booking-types", label: "Booking Types", icon: <FaListAlt /> },
+    // payment method coming soon{ path: "payment-settings", label: "Payment Settings", icon: <FaListAlt /> },
   ];
 
   const handleLogout = () => {

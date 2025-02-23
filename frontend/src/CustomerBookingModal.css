@@ -1,244 +1,200 @@
-/* CustomerBookingModal.css */
 .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.4); /* Slightly lighter overlay */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 9999;
-  }
-  
-  .modal-content {
-    background-color: white !important;
-    padding: 2rem;
-    border-radius: 12px;
-    width: 90%;
-    max-width: 500px;
-    position: relative;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1); /* Softer shadow */
-    max-height: none; /* Remove max-height constraint */
-    overflow-y: visible;
-    border-radius: 16px !important;
-  }
-  
-  .close-button {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: #666;
-    padding: 0 0.5rem;
-    transition: color 0.2s ease;
-  }
-  
-  .close-button:hover {
-    color: #000;
-  }
-  
-  .modal-title {
-    text-align: center;
-    margin: 1rem 0 1.5rem;
-    color: #000;
-    font-size: 1.8rem;
-  }
-  
-  .error-message {
-    color: #ff4444;
-    text-align: center;
-    margin-bottom: 1rem;
-    font-size: 0.9rem;
-  }
-  
-  .animation-container {
-    position: relative;
-    flex-grow: 1; /* Make container expand */
-    display: flex;
-    flex-direction: column;
-    overflow: visible; /* Changed from hidden */
-  }
-  
-  .step-content {
-    position: relative;
-    width: 100%;
-    padding: 0 0.5rem;
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem; /* Add spacing between form items */
-  }
-  
-  .input-group {
-    margin-bottom: 0; /* Remove bottom margin */
-    flex-shrink: 0; /* Prevent form items from shrinking */
-  }
-  
-  .input-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    color: #333;
-    font-weight: 500;
-  }
-  
-  .input-group input {
-    width: 100%;
-    padding: 0.75rem;
-    border: 2px solid #eee;
-    border-radius: 8px;
-    font-size: 1rem;
-    transition: border-color 0.2s ease;
-  }
-  
-  .input-group input:focus {
-    border-color: #FFC72C;
-    outline: none;
-  }
-  
-  .phone-input {
-    width: 100%;
-    padding: 0.75rem;
-    border: 2px solid #eee;
-    border-radius: 8px;
-    font-size: 1rem;
-    transition: border-color 0.2s ease;
-  }
-  
-  .input-error {
-    color: #ff4444;
-    font-size: 0.8rem;
-    margin-top: 0.5rem;
-  }
-  
-  .duration-note {
-    font-size: 0.9rem;
-    color: #666;
-    margin-top: 1rem;
-  }
-  
-  .otp-instruction {
-    text-align: center;
-    margin-bottom: 1.5rem;
-    color: #333;
-  }
-  
-  .otp-input {
-    width: 100%;
-    padding: 0.75rem;
-    border: 2px solid #eee;
-    border-radius: 8px;
-    font-size: 1.2rem;
-    text-align: center;
-  }
-  
-  .success-content {
-    text-align: center;
-    padding: 2rem 0;
-  }
-  
-  .success-message {
-    color: #28a745;
-    margin-bottom: 1rem;
-    font-size: 1.5rem;
-  }
-  
-  .success-text {
-    color: #666;
-    font-size: 1rem;
-  }
-  
-  .button-container {
-    display: flex;
-    justify-content: flex-end;
-    gap: 1rem;
-    margin-top: 2rem;
-  }
-  
-  .back-button {
-    padding: 0.75rem 1.5rem;
-    background-color: #f0f0f0;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    color: #333;
-    font-weight: 500;
-  }
-  
-  .next-button {
-    padding: 0.75rem 1.5rem;
-    background-color: #FFC72C;
-    color: #333;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 600;
-    transition: background-color 0.2s ease;
-  }
-  
-  .next-button:disabled {
-    background-color: #f0f0f0;
-    cursor: not-allowed;
-  }
-  
-  .done-button {
-    padding: 0.75rem 1.5rem;
-    background-color: #28a745;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 600;
-  }
-  
-  .loading-icon {
-    height: 20px;
-    vertical-align: middle;
-  }
-  
-  .react-tel-input {
-    width: 100% !important;
-  }
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
 
-  .react-tel-input .form-control {
-    width: 100% !important;
-    height: auto !important;
-    padding: 0.75rem 0.75rem 0.75rem 48px !important;
-  }
-  
-  /* Phone Input Customization */
-  .react-tel-input .flag-dropdown {
-    border: 1px solid #e0e0e0 !important;
-    background-color: #f8f8f8 !important;
-    border-radius: 8px 0 0 8px !important;
-  }
-  
-  .react-tel-input .selected-flag {
-    background: #f8f8f8 !important;
-    border-radius: 8px 0 0 8px !important;
-  }
+/* Default modal is narrower (600px) */
+.modal-content {
+  background-color: #fff !important;
+  padding: 2rem;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px; 
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  /* Smoothly animate changes to max-width */
+  transition: max-width 0.4s ease;
+}
 
-  .react-tel-input .selected-flag:hover {
-    background-color: #eee !important;
-  }
-  
-  .react-tel-input .flag-dropdown.open {
-    background-color: rgba(255, 199, 44, 0.1) !important;
-  }
+/* Step 2 => bigger width => animate to 1200px */
+.modal-content.step2-expanded {
+  max-width: 1200px;
+}
 
-  .button-container {
-    margin-top: auto; /* Push buttons to bottom */
-    padding-top: 2rem;
+.close-button {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  padding: 0 0.5rem;
+  transition: color 0.2s ease;
+}
+.close-button:hover {
+  color: #000;
+}
+
+.modal-title {
+  text-align: center;
+  margin: 1rem 0 1.5rem;
+  color: #000;
+  font-size: 1.8rem;
+}
+
+.error-message {
+  color: #ff4444;
+  text-align: center;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.animation-container {
+  position: relative;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+.step-content {
+  position: relative;
+  width: 100%;
+  padding: 0 0.5rem;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Step 2 => 3-column layout horizontally, fallback to column on narrow screens */
+.step-content.booking-layout {
+  flex-direction: row !important;
+  gap: 2rem !important;
+  align-items: flex-start !important;
+}
+@media (max-width: 900px) {
+  .step-content.booking-layout {
+    flex-direction: column !important;
   }
-  
-  .input-group input, .phone-input {
-  border: 1px solid #e0e0e0 !important;
-  background-color: #f8f8f8 !important;
-  padding: 12px 16px !important;
+}
+
+.input-group {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+.input-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #333;
+  font-weight: 500;
+}
+.input-group input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #eee;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+}
+.input-group input:focus {
+  border-color: #FFC72C;
+  outline: none;
+}
+
+.phone-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #eee;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+}
+.input-error {
+  color: #ff4444;
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+}
+
+.otp-instruction {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  color: #333;
+}
+.otp-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #eee;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  text-align: center;
+}
+
+.success-content {
+  text-align: center;
+  padding: 2rem 0;
+}
+.success-message {
+  color: #28a745;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+.success-text {
+  color: #666;
+  font-size: 1rem;
+}
+
+.button-container {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+.back-button {
+  padding: 0.75rem 1.5rem;
+  background-color: #f0f0f0;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #333;
+  font-weight: 500;
+}
+.next-button {
+  padding: 0.75rem 1.5rem;
+  background-color: #FFC72C;
+  color: #333;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.2s ease;
+}
+.next-button:disabled {
+  background-color: #f0f0f0;
+  cursor: not-allowed;
+}
+.done-button {
+  padding: 0.75rem 1.5rem;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.loading-icon {
+  height: 20px;
+  vertical-align: middle;
 }
 
 .regenerate-button {
@@ -250,31 +206,171 @@
   margin-left: 10px;
   padding: 0;
 }
-
 .regenerate-button:hover {
   text-decoration: underline;
 }
-
 .regenerate-button:disabled {
   color: #999;
   cursor: not-allowed;
 }
-  
-  /* Animations */
-  @keyframes slideNext {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
-  
-  @keyframes slidePrev {
-    from { transform: translateX(-100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
-  
-  .animation-container.next .step-content {
-    animation: slideNext 0.3s forwards;
-  }
-  
-  .animation-container.prev .step-content {
-    animation: slidePrev 0.3s forwards;
-  }
+
+/* Animations for step transitions (fade+slide) */
+@keyframes fadeSlideNext {
+  0% { transform: translateX(50px); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+@keyframes fadeSlidePrev {
+  0% { transform: translateX(-50px); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+.animation-container.next .step-content {
+  animation: fadeSlideNext 0.4s forwards;
+}
+.animation-container.prev .step-content {
+  animation: fadeSlidePrev 0.4s forwards;
+}
+
+/* 3-column panels for step 2 */
+.booking-layout .left-panel {
+  flex: 1;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  padding: 1rem;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.booking-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 0;
+}
+.booking-subtitle {
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0;
+}
+.booking-info {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: #444;
+}
+
+.booking-layout .middle-panel {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* React-Calendar styling */
+.react-calendar {
+  width: 100% !important;
+  max-width: 450px;
+  border: none;
+  background: #fff;
+  border-radius: 8px;
+  font-family: inherit;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+.react-calendar__navigation {
+  display: flex;
+  justify-content: space-between;
+  margin: 1rem 0;
+}
+.react-calendar__navigation button {
+  background: none;
+  border: none;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+.react-calendar__month-view__weekdays {
+  text-align: center !important;
+  font-weight: 600;
+  color: #666;
+}
+.react-calendar__tile {
+  height: 60px;
+  max-width: 60px;
+  text-align: center;
+  padding: 0.5rem;
+  border-radius: 8px;
+  transition: background 0.2s, color 0.2s;
+}
+.react-calendar__tile--active {
+  background: #FFC72C;
+  color: #fff;
+}
+.react-calendar__tile--now {
+  background: #eaf5ff;
+}
+.react-calendar__tile:hover {
+  background: #fafafa;
+}
+
+.custom-calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 1rem 0;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.calendar-month-year {
+  margin: 0 1rem;
+  color: #333;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.calendar-nav-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #333;
+  padding: 0.5rem;
+  transition: color 0.2s ease;
+}
+.calendar-nav-btn:hover {
+  color: #000;
+}
+
+/* Right panel => timeslots */
+.booking-layout .right-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+}
+.time-title {
+  margin: 0 0 1rem;
+  font-weight: 600;
+}
+.timeslot-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.timeslot-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  background-color: #fff;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.timeslot-btn:hover {
+  border-color: #FFC72C;
+}
+.timeslot-btn.active {
+  border: 2px solid #FFC72C;
+}
+.no-times-msg {
+  margin-top: 1rem;
+  color: #666;
+}

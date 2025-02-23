@@ -10,6 +10,7 @@ import Availability from './Availability';
 import BookingTypes from './BookingTypes';
 import Calendar from './Calendar';
 import UpcomingBookings from './UpcomingBookings';
+// import PaymentSettings from './PaymentSettings'; coming soon
 
 // Public Components
 import HomePage from './HomePage';
@@ -198,6 +199,7 @@ function App() {
             <Route path="availability" element={<Availability />} />
             <Route path="booking-types" element={<BookingTypes />} />
             <Route path="upcoming-bookings" element={<UpcomingBookings />} />
+            {/* Payment Modal <Route path="payment-settings" element={<PaymentSettings />} /> */}
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

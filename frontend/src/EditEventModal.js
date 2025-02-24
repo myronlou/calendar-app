@@ -51,10 +51,10 @@ function EditEventModal({
 
   // Auto-fill email for non-admin users if needed
   useEffect(() => {
-    if (!isAdmin && currentUserEmail && formData.email !== currentUserEmail) {
+    if (!isAdmin && currentUserEmail) {
       setFormData(prev => ({ ...prev, email: currentUserEmail }));
     }
-  }, [isAdmin, currentUserEmail, formData.email, setFormData]);
+  }, [isAdmin, currentUserEmail, setFormData]);
 
   if (!show) return null;
 

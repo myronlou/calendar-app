@@ -1,305 +1,434 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { jwtDecode } from 'jwt-decode';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
-import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
-import { jwtDecode } from 'jwt-decode';
-import EditEventModal from './EditEventModal';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import CreateEventModal from './CreateEventModal';
+import EditEventModal from './EditEventModal';
 import './PublicCalendar.css';
 
+dayjs.extend(utc);
+dayjs.extend(isSameOrBefore);
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
 function PublicCalendar() {
-  const navigate = useNavigate();
   const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [backgroundEvents, setBackgroundEvents] = useState([]);
+  const [availability, setAvailability] = useState({}); // Object keyed by day (e.g. { mon: { start, end, enabled } })
+  const [rawExclusions, setRawExclusions] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createFormData, setCreateFormData] = useState({
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [formData, setFormData] = useState({
+    title: '',
+    start: '',
+    end: '',
     fullName: '',
     email: '',
     phone: '',
-    start: '',
     bookingTypeId: ''
   });
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editFormData, setEditFormData] = useState({});
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
-  let currentUserEmail = localStorage.getItem('userEmail') || '';
+  const navigate = useNavigate();
   const token = localStorage.getItem('token');
-  if (!currentUserEmail && token) {
+  const calendarRef = useRef(null);
+
+  let currentUserEmail = '';
+  if (token) {
     try {
       const decoded = jwtDecode(token);
       currentUserEmail = decoded.email || '';
-      // (Optional) You might want to save this in localStorage for future use.
-      localStorage.setItem('userEmail', currentUserEmail);
     } catch (err) {
-      console.error('Error decoding token:', err);
+      console.error('Token decode error:', err);
+      currentUserEmail = '';
     }
   }
 
+  // If token is missing, redirect to login.
   useEffect(() => {
-    const fetchData = async () => {
-      if (!token) {
-        navigate('/');
-        return;
-      }
-  
-      try {
-        // Validate token
-        const validationRes = await fetch(`${API_URL}/api/events/validate-token`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!validationRes.ok) throw new Error('Invalid token');
-        
-        // Fetch events
-        const eventsRes = await fetch(`${API_URL}/api/events`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!eventsRes.ok) {
-          throw new Error('Failed to fetch events');
-        }
-        const eventsData = await eventsRes.json();
-        const formattedEvents = eventsData.map(event => ({
-          ...event,
-          start: new Date(event.start),
-          end: new Date(event.end)
-        }));
-        setEvents(formattedEvents);
-        setLoading(false);
-      } catch (error) {
-        localStorage.removeItem('token');
-        navigate('/');
-      }
-    };
-    fetchData();
-  }, [navigate, API_URL, token]);
+    if (!token) {
+      navigate('/auth/login');
+    }
+  }, [token, navigate]);
 
-  // Handler for creating a new event
-  const handleCreate = async () => {
+  // Fetch customer events
+  const fetchEvents = async () => {
+    if (!token) return;
     try {
-      const response = await fetch(`${API_URL}/api/events`, {
+      const res = await fetch(`${API_URL}/api/events`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch events');
+      const data = await res.json();
+      const formatted = data.map(event => ({
+        id: event.id.toString(),
+        title: event.bookingType && event.bookingType.name ? event.bookingType.name : 'Booking',
+        start: event.start,
+        end: event.end,
+        fullName: event.fullName,
+        phone: event.phone,
+        bookingTypeId: event.bookingTypeId,
+        email: event.email,
+        bookingTypeColor: event.bookingTypeColor
+      }));
+      setEvents(formatted);
+    } catch (error) {
+      console.error('Error fetching events:', error);
+      localStorage.removeItem('token');
+      navigate('/auth/login');
+    }
+  };
+
+  // Fetch availability from public endpoint
+  const fetchAvailability = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/availability`);
+      if (!res.ok) throw new Error('Failed to fetch availability');
+      // Now, the backend returns an array (same as admin)
+      const data = await res.json();
+      const availObj = {};
+      data.forEach(rec => {
+        availObj[rec.day] = {
+          start: rec.start,
+          end: rec.end,
+          enabled: rec.enabled
+        };
+      });
+      setAvailability(availObj);
+    } catch (error) {
+      console.error('Error fetching availability:', error);
+    }
+  };
+
+  // Fetch exclusions (unchanged)
+  const fetchRawExclusions = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/public/exclusions`);
+      if (!res.ok) throw new Error('Failed to fetch exclusions');
+      const data = await res.json();
+      setRawExclusions(data);
+    } catch (error) {
+      console.error('Error fetching exclusions:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchEvents();
+    fetchAvailability();
+    fetchRawExclusions();
+    // Poll events every 5 seconds
+    const interval = setInterval(fetchEvents, 500);
+    return () => clearInterval(interval);
+  }, [navigate, token]);
+
+  // Compute background events (to darken unavailable times) using availability and exclusions.
+  const generateBackgroundEvents = (info) => {
+    let bgEvents = [];
+    const rangeStartLocal = dayjs(info.start).startOf('day');
+    const rangeEndLocal = dayjs(info.end).startOf('day');
+
+    // For each day in the visible range...
+    for (let dLocal = rangeStartLocal.clone(); dLocal.isBefore(rangeEndLocal); dLocal = dLocal.add(1, 'day')) {
+      const dUtc = dLocal.clone().utc();
+      const dayAbbr = dUtc.format('ddd').toLowerCase().slice(0, 3);
+      const localDayStart = dLocal.clone().startOf('day');
+      const localDayEnd = dLocal.clone().endOf('day');
+      const avail = availability[dayAbbr];
+
+      if (!avail || !avail.enabled) {
+        bgEvents.push({
+          id: `bg-disabled-${dLocal.format('YYYY-MM-DD')}`,
+          start: localDayStart.toISOString(),
+          end: localDayEnd.toISOString(),
+          display: 'background',
+          backgroundColor: '#e0e0e0'
+        });
+        continue;
+      }
+
+      let [startH, startM] = avail.start.split(':').map(Number);
+      let [endH, endM] = avail.end.split(':').map(Number);
+      let dayStartUtc = dUtc.clone().startOf('day');
+      let windowStartUtc = dayStartUtc.clone().add(startH, 'hour').add(startM, 'minute');
+      let windowEndUtc = dayStartUtc.clone().add(endH, 'hour').add(endM, 'minute');
+
+      if (windowEndUtc.isBefore(windowStartUtc)) {
+        windowEndUtc = windowEndUtc.add(1, 'day');
+      }
+
+      let windowStartLocal = windowStartUtc.local();
+      let windowEndLocal = windowEndUtc.local();
+
+      let availStart = windowStartLocal.isAfter(localDayStart) ? windowStartLocal : localDayStart;
+      let availEnd = windowEndLocal.isBefore(localDayEnd) ? windowEndLocal : localDayEnd;
+
+      if (availEnd.isSameOrBefore(availStart)) {
+        bgEvents.push({
+          id: `bg-disabled-${dLocal.format('YYYY-MM-DD')}`,
+          start: localDayStart.toISOString(),
+          end: localDayEnd.toISOString(),
+          display: 'background',
+          backgroundColor: '#e0e0e0'
+        });
+      } else {
+        if (availStart.isAfter(localDayStart)) {
+          bgEvents.push({
+            id: `bg-${dLocal.format('YYYY-MM-DD')}-before`,
+            start: localDayStart.toISOString(),
+            end: availStart.toISOString(),
+            display: 'background',
+            backgroundColor: '#e0e0e0'
+          });
+        }
+        if (availEnd.isBefore(localDayEnd)) {
+          bgEvents.push({
+            id: `bg-${dLocal.format('YYYY-MM-DD')}-after`,
+            start: availEnd.toISOString(),
+            end: localDayEnd.toISOString(),
+            display: 'background',
+            backgroundColor: '#e0e0e0'
+          });
+        }
+      }
+    }
+
+    // Add background events for each exclusion
+    rawExclusions.forEach(ex => {
+      const exStartUtc = dayjs.utc(`${ex.startDate}T${ex.startTime}`);
+      const exEndUtc = ex.endDate ? dayjs.utc(`${ex.endDate}T${ex.endTime}`) : exStartUtc;
+      const exStartLocal = exStartUtc.local();
+      const exEndLocal = exEndUtc.local();
+
+      if (exEndLocal.isBefore(rangeStartLocal) || exStartLocal.isAfter(rangeEndLocal)) return;
+
+      for (let d2 = rangeStartLocal.clone(); d2.isBefore(rangeEndLocal); d2 = d2.add(1, 'day')) {
+        const dayStart = d2.clone().startOf('day');
+        const dayEnd = d2.clone().endOf('day');
+
+        if (dayEnd.isBefore(exStartLocal) || dayStart.isAfter(exEndLocal)) continue;
+
+        const clampStart = exStartLocal.isAfter(dayStart) ? exStartLocal : dayStart;
+        const clampEnd = exEndLocal.isBefore(dayEnd) ? exEndLocal : dayEnd;
+
+        bgEvents.push({
+          id: `ex-${ex.id}-${d2.format('YYYY-MM-DD')}`,
+          start: clampStart.toISOString(),
+          end: clampEnd.isSame(dayEnd)
+              ? d2.clone().add(1, 'day').startOf('day').toISOString()
+              : clampEnd.toISOString(),
+          display: 'background',
+          backgroundColor: '#e0e0e0'
+        });
+      }
+    });
+
+    setBackgroundEvents(bgEvents);
+  };
+
+  // Update background events when the visible calendar range changes.
+  const handleDatesSet = (info) => {
+    if (Object.keys(availability).length > 0) {
+      generateBackgroundEvents(info);
+    }
+  };
+
+  useEffect(() => {
+    if (calendarRef.current && Object.keys(availability).length > 0) {
+      const calendarApi = calendarRef.current.getApi();
+      generateBackgroundEvents({
+        start: calendarApi.view.activeStart,
+        end: calendarApi.view.activeEnd
+      });
+    }
+  }, [availability, rawExclusions]);
+
+  // Create, update, and delete event handlers using public endpoints.
+  const handleCreateEvent = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_URL}/api/events/auth`, {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          eventData: createFormData,
-          token: token
-        })
+        body: JSON.stringify(formData)
       });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        // Option 1: Append the new event to the list
-        const newEvent = {
-          id: data.event.id,
-          bookingTypeId: data.event.bookingTypeId,
-          start: new Date(data.event.start),
-          end: new Date(data.event.end)
-          // Other details like fullName, phone can be added if needed
-        };
-        setEvents([...events, newEvent]);
-        return data;
-      } else {
-        console.error('Creation error:', data);
-        return { error: data.error };
-      }
+      if (!res.ok) throw new Error('Failed to create event');
+      const responseData = await res.json();
+      const createdEvent = responseData.event;
+      setEvents(prev => [...prev, createdEvent]);
+      setShowCreateModal(false);
+      return createdEvent;
     } catch (error) {
       console.error('Error creating event:', error);
-      return { error: error.message };
+      return { error: true };
     }
   };
 
-  // Handler for when an event is clicked to open the edit modal.
-  const handleEventClick = (clickInfo) => {
-    const clickedEvent = clickInfo.event;
-    // Prepare form data for editing. We use extendedProps for custom fields.
-    setEditFormData({
-      id: clickedEvent.id,
-      bookingTypeId: clickedEvent.extendedProps.bookingTypeId,
-      fullName: clickedEvent.extendedProps.fullName,
-      phone: clickedEvent.extendedProps.phone,
-      start: clickedEvent.start.toISOString(),
-      email: currentUserEmail // Email is not editable.
-    });
-    setShowEditModal(true);
-  };
-
-  // Handler for updating an event
-  const handleUpdate = async (updatedFormData) => {
+  const handleUpdateEvent = async () => {
+    if (!token || !selectedEvent) return;
     try {
-      const response = await fetch(`${API_URL}/api/events/${updatedFormData.id}`, {
+      const res = await fetch(`${API_URL}/api/events/auth/${selectedEvent.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          fullName: updatedFormData.fullName,
-          phone: updatedFormData.phone,
-          bookingTypeId: updatedFormData.bookingTypeId,
-          start: updatedFormData.start
-          // The backend will compute the end time based on the booking type's duration.
-        })
+        body: JSON.stringify(formData)
       });
-      if (response.ok) {
-        const updatedEvent = await response.json();
-        setEvents(events.map(e => e.id === updatedEvent.id ? {
-          ...updatedEvent,
-          start: new Date(updatedEvent.start),
-          end: new Date(updatedEvent.end)
-        } : e));
-        return updatedEvent;
-      } else {
-        const errorData = await response.json();
-        console.error('Update failed:', errorData);
-        return null;
-      }
+      if (!res.ok) throw new Error('Failed to update event');
+      const updatedEvent = await res.json();
+      setEvents(prev =>
+        prev.map(event => event.id === updatedEvent.id ? updatedEvent : event)
+      );
+      setShowEditModal(false);
+      return updatedEvent;
     } catch (error) {
       console.error('Error updating event:', error);
-      return null;
+      return { error: true };
     }
   };
 
-  // Handler for deleting an event
-  const handleDelete = async () => {
+  const handleDeleteEvent = async () => {
+    if (!token || !selectedEvent) return;
     try {
-      const response = await fetch(`${API_URL}/api/events/${editFormData.id}`, {
+      await fetch(`${API_URL}/api/events/${selectedEvent.id}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (response.ok) {
-        setEvents(events.filter(e => e.id !== editFormData.id));
-        return true;
-      } else {
-        const errorData = await response.json();
-        console.error('Delete failed:', errorData);
-        return false;
-      }
+      setEvents(prev => prev.filter(event => event.id !== selectedEvent.id));
+      setShowEditModal(false);
     } catch (error) {
       console.error('Error deleting event:', error);
-      return false;
     }
   };
 
-  // Callback for clicking on a date cell (for single clicks)
-  const handleDateClick = (clickInfo) => {
-    setCreateFormData({
+  // When a date cell is clicked, prefill the start/end with that date.
+  const handleDateClick = (info) => {
+    const utcDateStr = dayjs(info.dateStr).utc().toISOString();
+    setFormData({
+      title: '',
+      start: utcDateStr,
+      end: utcDateStr,
       fullName: '',
       email: currentUserEmail,
       phone: '',
-      start: clickInfo.date.toISOString(),
       bookingTypeId: ''
     });
     setShowCreateModal(true);
   };
 
-  // Handler for when a date/time slot is selected to create a new booking.
-  const handleDateSelect = (selectInfo) => {
-    // Update the create form data with the selected start time.
-    setCreateFormData({
-      ...createFormData,
-      start: selectInfo.start.toISOString()
-    });
-    setShowCreateModal(true);
+  // When an event is clicked, open the edit modal.
+  const handleEventClick = (info) => {
+    const event = events.find(e => e.id === info.event.id);
+    if (event) {
+      setSelectedEvent(event);
+      setFormData({
+        title: event.title,
+        start: event.start,
+        end: event.end,
+        fullName: event.fullName,
+        email: event.email,
+        phone: event.phone,
+        bookingTypeId: event.bookingTypeId
+      });
+      setShowEditModal(true);
+    }
   };
-
-  if (loading) {
-    return (
-      <div className="loading-container">
-        <div className="loading-spinner"></div>
-        <p>Loading your bookings...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="public-calendar-page">
-      {/* TOP BANNER / HEADER */}
       <header className="public-calendar-header">
         <div className="header-left">
-          {/* Title or Logo */}
           <h1 className="app-title">Your Bookings</h1>
-        </div> 
+        </div>
         <div className="header-right">
-            <button
-              className="new-booking-button"
-              onClick={() => {
-                setCreateFormData({
-                  fullName: '',
-                  email: currentUserEmail,
-                  phone: '',
-                  start: '',
-                  bookingTypeId: ''
-                });
-                setShowCreateModal(true);
-              }}
-            >
-              New Booking
-            </button>
-            <button
-              className="logout-button"
-              onClick={() => {
-                localStorage.removeItem('token');
-                navigate('/');
-              }}>
-                Log out
-            </button>
+          <button
+            className="new-booking-button"
+            onClick={() => {
+              setFormData({
+                title: '',
+                start: '',
+                end: '',
+                fullName: '',
+                email: currentUserEmail,
+                phone: '',
+                bookingTypeId: ''
+              });
+              setShowCreateModal(true);
+            }}
+          >
+            New Booking
+          </button>
+          <button
+            className="logout-button"
+            onClick={() => {
+              localStorage.removeItem('token');
+              navigate('/');
+            }}
+          >
+            Log out
+          </button>
         </div>
       </header>
-
-      {/* MAIN CALENDAR CONTENT */}
       <div className="public-calendar-content">
         <FullCalendar
-          plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
-          initialView="dayGridMonth"
+          ref={calendarRef}
+          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          initialView="timeGridWeek"
           timeZone="local"
           selectable={true}
+          events={[...events, ...backgroundEvents]}
+          datesSet={handleDatesSet}
           dateClick={handleDateClick}
-          select={handleDateSelect}
-          events={events.map(event => ({
-            id: event.id,
-            title: event.bookingType && event.bookingType.name ? event.bookingType.name : 'Booking',
-            start: event.start,
-            end: event.end,
-            extendedProps: {
-              fullName: event.fullName,
-              phone: event.phone,
-              bookingTypeId: event.bookingTypeId
-            }
-          }))}
+          eventClick={handleEventClick}
+          allDaySlot={false}
           headerToolbar={{
             left: 'title',
-            center: 'dayGridMonth,timeGridWeek,dayGridDay',
+            center: 'timeGridWeek,dayGridDay',
             right: 'prev today next'
           }}
-          allDaySlot={false}
-          eventClick={handleEventClick}
-          eventDidMount={(info) => {
-            info.el.classList.add('calendar-event');
+          eventContent={(eventInfo) => {
+            if (eventInfo.event.display === 'background') return null;
+            return (
+              <div className="custom-event-content">
+                <div className="event-left">
+                  <span className="booking-type-dot" style={{ backgroundColor: eventInfo.event.extendedProps.bookingTypeColor || '#007bff' }}></span>
+                  <span className="event-title">{eventInfo.event.extendedProps.fullName}</span>
+                </div>
+                <div className="event-right">
+                  {dayjs(eventInfo.event.start).format('h A')}
+                </div>
+              </div>
+            );
           }}
         />
       </div>
-
       <CreateEventModal
         show={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onSubmit={handleCreate}
-        formData={createFormData}
-        setFormData={setCreateFormData}
+        formData={formData}
+        setFormData={setFormData}
         currentUserEmail={currentUserEmail}
+        isAdmin={false}
+        onSubmit={handleCreateEvent}
       />
-
       <EditEventModal
         show={showEditModal}
         onClose={() => setShowEditModal(false)}
-        formData={editFormData}
-        setFormData={setEditFormData}
-        onUpdate={handleUpdate}
-        onDelete={handleDelete}
+        formData={formData}
+        currentUserEmail={currentUserEmail}
+        isAdmin={false}
+        setFormData={setFormData}
+        onUpdate={handleUpdateEvent}
+        onDelete={handleDeleteEvent}
       />
     </div>
   );

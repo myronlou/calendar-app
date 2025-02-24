@@ -44,10 +44,10 @@ function CreateEventModal({
 
   // If the user is a customer, auto-fill the email with the current user email.
   useEffect(() => {
-    if (!isAdmin && currentUserEmail && formData.email !== currentUserEmail) {
+    if (!isAdmin && currentUserEmail) {
       setFormData((prev) => ({ ...prev, email: currentUserEmail }));
     }
-  }, [isAdmin, currentUserEmail, formData.email, setFormData]);
+  }, [isAdmin, currentUserEmail, setFormData]);
 
   // Email validation function
   const validateEmail = (email) => {

@@ -362,7 +362,7 @@ function CustomerBookingModal({ isOpen, onClose }) {
           {/* STEP 2 => 3-column layout */}
           {currentStep === 2 && (
             <div className="step-content booking-layout">
-              {/* LEFT PANEL */}
+              {/* Left panel: info */}
               <div className="left-panel">
                 <h3 className="booking-title">
                   {bookingTypes.find(bt => bt.id === parseInt(selectedType))?.name || 'Booking'}
@@ -380,24 +380,26 @@ function CustomerBookingModal({ isOpen, onClose }) {
                 </div>
               </div>
 
-              {/* MIDDLE PANEL => React-Calendar with custom navigation */}
+              {/* Middle panel: single-month Calendar */}
               <div className="middle-panel">
                 <Calendar
                   onChange={handleCalendarChange}
                   value={calendarDate}
                   minDate={new Date()}
-                  /* Force Monday as first day of week */
-                  calendarType="iso8601"
-                  /* e.g. "en-GB" so Monday is day 1, adjust to your locale if needed */
-                  locale="en-GB"
 
-                  /* Hide default prev/next labels, we'll use custom nav below */
-                  prevLabel={null}
-                  nextLabel={null}
+                  // Force single-month day selection
+                  maxDetail="month"
+                  minDetail="month"
+                  // Monday start
+                  locale="en-GB"
+                  
+                  // Hide default labels
+                  prevLabel="<"
+                  nextLabel=">"
                   prev2Label={null}
                   next2Label={null}
 
-                  /* Provide a custom navigation bar */
+                  // Custom nav with < and >
                   renderNavigation={({
                     activeStartDate,
                     label,
@@ -405,32 +407,25 @@ function CustomerBookingModal({ isOpen, onClose }) {
                     onClickPrev,
                   }) => (
                     <div className="custom-calendar-nav">
-                      {/* Left arrow for previous month */}
                       <button
                         className="calendar-nav-btn"
                         onClick={onClickPrev}
                         aria-label="Previous Month"
                       >
-                        &lt;
                       </button>
-                      
-                      {/* Center: Month + Year (label) */}
                       <span className="calendar-month-year">{label}</span>
-                      
-                      {/* Right arrow for next month */}
                       <button
                         className="calendar-nav-btn"
                         onClick={onClickNext}
                         aria-label="Next Month"
                       >
-                        &gt;
                       </button>
                     </div>
                   )}
                 />
               </div>
 
-              {/* RIGHT PANEL => Timeslots */}
+              {/* Right panel: timeslots */}
               <div className="right-panel">
                 <h4 className="time-title">
                   {formData.date

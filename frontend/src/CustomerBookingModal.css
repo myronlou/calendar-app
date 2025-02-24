@@ -12,7 +12,7 @@
 .modal-content {
   background-color: #fff !important;
   padding: 2rem;
-  border-radius: 12px;
+  border-radius: 15px !important;
   width: 90%;
   max-width: 600px; 
   max-height: 90vh;
@@ -78,16 +78,21 @@
 
 /* Step 2 => 3-column layout horizontally, fallback to column on narrow screens */
 .step-content.booking-layout {
-  flex-direction: row !important;
-  gap: 2rem !important;
-  align-items: flex-start !important;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0; /* or some small gap if you prefer */
 }
 @media (max-width: 900px) {
   .step-content.booking-layout {
     flex-direction: column !important;
   }
+  .booking-layout .left-panel,
+  .booking-layout .middle-panel {
+    border-right: none; /* remove vertical lines on small screens */
+    border-bottom: 1px solid #ddd; /* optionally separate them horizontally */
+  }
 }
-
 .input-group {
   margin-bottom: 0;
   flex-shrink: 0;
@@ -234,13 +239,14 @@
 /* 3-column panels for step 2 */
 .booking-layout .left-panel {
   flex: 1;
-  background-color: #f9f9f9;
-  border-radius: 8px;
+  background-color: transparent; /* remove blocky background */
+  border-radius: 0;
   padding: 1rem;
   min-width: 220px;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  border-right: 1px solid #ddd; /* vertical line on right */
 }
 .booking-title {
   font-size: 1.2rem;
@@ -263,34 +269,51 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding: 1rem;
+  border-right: 1px solid #ddd; /* second vertical line if you want two lines */
 }
 
 /* React-Calendar styling */
 .react-calendar {
   width: 100% !important;
-  max-width: 450px;
+  max-width: 420px;
+  background: none;
+  box-shadow: none;
   border: none;
-  background: #fff;
-  border-radius: 8px;
+  border-radius: 0;
   font-family: inherit;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
 }
+
 .react-calendar__navigation {
   display: flex;
   justify-content: space-between;
   margin: 1rem 0;
 }
+
 .react-calendar__navigation button {
-  background: none;
+  background: #fff !important;
+  color: #000;
   border: none;
   font-weight: 600;
   padding: 0.5rem 1rem;
-  cursor: pointer;
+  cursor: default;
 }
+
 .react-calendar__month-view__weekdays {
-  text-align: center !important;
+  flex-basis: 14.2857%;
+  text-align: center;
   font-weight: 600;
   color: #666;
+}
+
+.react-calendar__month-view__weekdays__weekday {
+  flex-basis: 14.2857%;
+  text-align: center;
+}
+
+.react-calendar__month-view__days__day {
+  flex-basis: 14.2857%;
+  text-align: center;
 }
 .react-calendar__tile {
   height: 60px;
@@ -318,26 +341,32 @@
   margin: 1rem 0;
   font-weight: 600;
   font-size: 1rem;
+  background-color: #fff !important; /* White background for the nav container */
+  padding: 0.5rem !important;
+  border-radius: 4px !important; /* Optional rounded corners */
 }
 
 .calendar-month-year {
-  margin: 0 1rem;
-  color: #333;
-  font-size: 1rem;
-  font-weight: 600;
+  margin: 0 1rem !important;
+  color: #333 !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  background-color: #fff !important; /* force white background */
+  padding: 0.5rem 1rem !important;
+  border-radius: 4px !important;
 }
 
 .calendar-nav-btn {
-  background: none;
+  background: #fff;
   border: none;
   font-size: 1.5rem;
   cursor: pointer;
-  color: #333;
-  padding: 0.5rem;
+  color: #000 !important; /* force arrow buttons to be black */
+  padding: 0.5rem !important;
   transition: color 0.2s ease;
 }
 .calendar-nav-btn:hover {
-  color: #000;
+  color: #000 !important; /* Remain black on hover */
 }
 
 /* Right panel => timeslots */
@@ -345,7 +374,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-width: 180px;
+  padding: 1rem;
 }
 .time-title {
   margin: 0 0 1rem;

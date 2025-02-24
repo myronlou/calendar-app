@@ -24,7 +24,10 @@ function LoginEmailPage() {
         body: JSON.stringify({ email, type: 'auth' })
       });
 
-      if (!response.ok) throw new Error('OTP generation failed');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'OTP generation failed');
+      }
 
       // Navigate to verify page with email
       navigate('/auth/verify', {

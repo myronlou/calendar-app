@@ -615,7 +615,6 @@ app.post('/api/events', async (req, res) => {
   }
 });
 
-
 //Get all the available timeslots for booking (authenticated + guest)
 app.get('/api/events/available', async (req, res) => {
   try {
@@ -785,17 +784,98 @@ app.get('/api/events', authMiddleware, async (req, res) => {
       where: {
         userId: req.user.userId
       },
-      select: {
-        id: true,
-        title: true,
-        start: true,
-        end: true
+      include: {
+        bookingType: true, // include booking type details
+        user: { select: { email: true } } // optional: include user email if needed
       }
     });
-    res.json(events);
+    const formattedEvents = events.map(event => ({
+      id: event.id,
+      title: event.bookingType.name,
+      bookingTypeId: event.bookingTypeId,
+      bookingTypeColor: event.bookingType.color,
+      start: event.start.toISOString(),
+      end: event.end.toISOString(),
+      fullName: event.fullName,
+      email: event.email,
+      phone: event.phone,
+      userEmail: event.user?.email || null
+    }));
+    res.json(formattedEvents);
   } catch (error) {
     console.error('Error fetching events:', error);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/events/auth', authMiddleware, async (req, res) => {
+  try {
+    const eventData = req.body.eventData;
+    if (!eventData) {
+      return res.status(400).json({ error: 'Invalid request format' });
+    }
+    
+    // Force the email from the JWT token
+    const emailToUse = req.user.email.toLowerCase();
+    
+    // Validate required fields (do not allow client-supplied email)
+    const requiredFields = ['start', 'fullName', 'phone', 'bookingTypeId'];
+    const missingFields = requiredFields.filter(field => !eventData[field]);
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        error: `Missing required fields: ${missingFields.join(', ')}`
+      });
+    }
+    
+    // Retrieve the booking type to determine duration
+    const bookingTypeId = parseInt(eventData.bookingTypeId, 10);
+    const bookingType = await prisma.bookingType.findUnique({
+      where: { id: bookingTypeId }
+    });
+    if (!bookingType) {
+      return res.status(400).json({ error: 'Invalid booking type' });
+    }
+    
+    // Parse the start date and compute the end date based on booking type duration
+    const startDate = new Date(eventData.start);
+    if (isNaN(startDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid start date' });
+    }
+    const endDate = new Date(startDate.getTime() + bookingType.duration * 60 * 1000);
+    
+    // Validate availability and overlapping bookings.
+    const availabilityCheck = await validateAvailabilityAndExclusions(startDate, endDate, prisma);
+    if (!availabilityCheck.ok) {
+      return res.status(400).json({ error: availabilityCheck.message });
+    }
+    
+    // Create the event using the forced email and link it to the authenticated customer.
+    const event = await prisma.event.create({
+      data: {
+        bookingTypeId: bookingType.id,
+        start: startDate,
+        end: endDate,
+        fullName: eventData.fullName,
+        email: emailToUse, // use email from JWT
+        phone: eventData.phone,
+        user: { connect: { id: req.user.userId } }
+      }
+    });
+    
+    // (Optionally, send confirmation email or generate a management token here)
+    res.json({
+      success: true,
+      event: {
+        id: event.id,
+        title: bookingType.name,
+        start: event.start.toISOString(),
+        end: event.end.toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('Authenticated event creation error:', error);
+    res.status(500).json({ error: 'Booking creation failed' });
   }
 });
 
@@ -811,70 +891,66 @@ app.get('/api/events/manage', authMiddleware, async (req, res) => {
 });
 
 // Update Event (Authenticated)
-app.put('/api/events/:id', authMiddleware, async (req, res) => {
+app.put('/api/events/auth/:id', authMiddleware, async (req, res) => {
   try {
-    // Find the event and ensure it belongs to the authenticated user
-    const eventId = parseInt(req.params.id);
+    const eventId = parseInt(req.params.id, 10);
+    if (isNaN(eventId)) {
+      return res.status(400).json({ error: 'Invalid event ID' });
+    }
+    
+    // Find the event and ensure it belongs to the authenticated user.
     const event = await prisma.event.findUnique({
       where: { id: eventId }
     });
     if (!event || event.userId !== req.user.userId) {
       return res.status(404).json({ error: 'Event not found' });
     }
-
-    // Parse new start time
-    const startDate = new Date(req.body.start);
+    
+    // Force the email from the token, ignoring any client-supplied value.
+    const emailToUse = req.user.email.toLowerCase();
+    
+    const { start, fullName, phone, bookingTypeId } = req.body;
+    if (!start || !fullName || !phone || !bookingTypeId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const startDate = new Date(start);
     if (isNaN(startDate.getTime())) {
       return res.status(400).json({ error: 'Invalid start date' });
     }
-
-    // Check for Availability and Exclusions and Prevent overlapping bookings
-    const check = await validateAvailabilityAndExclusions(startDate, endDate, prisma);
-    if (!check.ok) {
-      return res.status(400).json({ error: check.message });
-    }
-
-    // Convert available times to minutes from midnight
-    const [availStartHour, availStartMinute] = availabilityRecord.start.split(':').map(Number);
-    const [availEndHour, availEndMinute] = availabilityRecord.end.split(':').map(Number);
-    const availStartTotal = availStartHour * 60 + availStartMinute;
-    const availEndTotal = availEndHour * 60 + availEndMinute;
-
-    // Check chosen start time against availability window
-    const chosenStartTotal = startDate.getHours() * 60 + startDate.getMinutes();
-    if (chosenStartTotal < availStartTotal || chosenStartTotal >= availEndTotal) {
-      return res.status(400).json({ error: "Selected start time is outside available booking hours" });
-    }
-
-    // Retrieve booking type to compute the new event duration
+    
+    // Retrieve the booking type to calculate the new end date.
     const bookingType = await prisma.bookingType.findUnique({
-      where: { id: parseInt(req.body.bookingTypeId) }
+      where: { id: parseInt(bookingTypeId, 10) }
     });
     if (!bookingType) {
-      return res.status(400).json({ error: "Invalid booking type" });
+      return res.status(400).json({ error: 'Invalid booking type' });
     }
-    // Compute end time based on booking type's duration
-    const computedEndDate = new Date(startDate.getTime() + bookingType.duration * 60 * 1000);
-    const chosenEndTotal = computedEndDate.getHours() * 60 + computedEndDate.getMinutes();
-    if (chosenEndTotal > availEndTotal) {
-      return res.status(400).json({ error: "The booking duration exceeds available booking hours for that day" });
+    const endDate = new Date(startDate.getTime() + bookingType.duration * 60 * 1000);
+    
+    // Validate availability and overlapping events (exclude current event).
+    const availabilityCheck = await validateAvailabilityAndExclusions(startDate, endDate, prisma, eventId);
+    if (!availabilityCheck.ok) {
+      return res.status(400).json({ error: availabilityCheck.message });
     }
-
-    // Update event with new start and computed end time (other fields updated as provided)
+    
+    // Update the event (force email from token).
     const updatedEvent = await prisma.event.update({
       where: { id: eventId },
       data: {
         start: startDate,
-        end: computedEndDate,
-        fullName: req.body.fullName,
-        phone: req.body.phone,
-        bookingTypeId: parseInt(req.body.bookingTypeId)
+        end: endDate,
+        fullName: fullName,
+        phone: phone,
+        bookingTypeId: parseInt(bookingTypeId, 10),
+        email: emailToUse // force customer's email
       }
     });
-
+    
     res.json(updatedEvent);
+    
   } catch (error) {
-    console.error('Error updating event:', error);
+    console.error('Authenticated event update error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -925,28 +1001,10 @@ app.get('/api/booking-types', async (req, res) => {
 // can prevent users from selecting unavailable times.
 app.get('/api/availability', async (req, res) => {
   try {
-    // Retrieve all availability records
-    const availRecords = await prisma.availability.findMany();
-    // Define a fixed day order for sorting
-    const dayOrder = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-    availRecords.sort((a, b) => dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day));
-
-    // Retrieve all exclusion records and format their dates as "YYYY-MM-DD"
-    const exclusionRecords = await prisma.exclusion.findMany({
-      orderBy: { date: 'asc' }
-    });
-    const formattedExclusions = exclusionRecords.map(ex => ({
-      id: ex.id,
-      date: new Date(ex.date).toISOString().split("T")[0],
-      note: ex.note
-    }));
-
-    res.json({
-      availability: availRecords,
-      exclusions: formattedExclusions
-    });
+    const availability = await prisma.availability.findMany();
+    res.json(availability);
   } catch (error) {
-    console.error("Error fetching public availability:", error);
+    console.error("Error fetching availability:", error);
     res.status(500).json({ error: "Failed to load availability" });
   }
 });

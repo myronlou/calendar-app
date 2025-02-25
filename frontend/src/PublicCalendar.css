@@ -295,8 +295,9 @@
 /* Force a single solid color, no blending, no border, no shadow. */
 .fc .fc-bg-event {
   background-color: #ececec !important; /* your chosen shade */
-  opacity: 1 !important;
+  opacity: 0.9 !important;
   border: none !important;
   box-shadow: none !important;
   mix-blend-mode: normal !important;
+  cursor: not-allowed !important;
 }

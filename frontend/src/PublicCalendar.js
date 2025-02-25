@@ -8,12 +8,14 @@ import interactionPlugin from '@fullcalendar/interaction';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
+import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import CreateEventModal from './CreateEventModal';
 import EditEventModal from './EditEventModal';
 import './PublicCalendar.css';
 
 dayjs.extend(utc);
 dayjs.extend(isSameOrBefore);
+dayjs.extend(isSameOrAfter);
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
@@ -25,6 +27,7 @@ function PublicCalendar() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [allBookedEvents, setAllBookedEvents] = useState([]);
   const [formData, setFormData] = useState({
     title: '',
     start: '',
@@ -85,6 +88,17 @@ function PublicCalendar() {
     }
   };
 
+  const fetchAllBookings = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/events/all-bookings`);
+      if (!res.ok) throw new Error('Failed to fetch all bookings');
+      const data = await res.json();
+      setAllBookedEvents(data);
+    } catch (error) {
+      console.error('Error fetching all bookings:', error);
+    }
+  };
+
   // Fetch availability from public endpoint
   const fetchAvailability = async () => {
     try {
@@ -122,68 +136,120 @@ function PublicCalendar() {
     fetchEvents();
     fetchAvailability();
     fetchRawExclusions();
-    // Poll events every 5 seconds
-    const interval = setInterval(fetchEvents, 500);
+    fetchAllBookings();
+    const interval = setInterval(() => {
+      fetchEvents();
+      fetchAvailability();
+      fetchRawExclusions();
+      fetchAllBookings();
+    }, 500);
     return () => clearInterval(interval);
   }, [navigate, token]);
+
+  const isTimeAvailable = (date) => {
+    // Convert clicked date to local time.
+    const localDate = dayjs(date);
+    
+    // Block any time in the past.
+    if (localDate.isBefore(dayjs())) return false;
+    
+    // Get the availability record for this day (using three-letter abbreviation).
+    const dayAbbr = localDate.format('ddd').toLowerCase().slice(0, 3);
+    const availRecord = availability[dayAbbr];
+    if (!availRecord || !availRecord.enabled) return false;
+    
+    // Convert availability times (stored as UTC) to local time for the clicked day.
+    const availStart = dayjs.utc(`${localDate.format('YYYY-MM-DD')}T${availRecord.start}:00`).local();
+    const availEndRaw = dayjs.utc(`${localDate.format('YYYY-MM-DD')}T${availRecord.end}:00`).local();
+    const availEnd = availEndRaw.isBefore(availStart) ? availEndRaw.add(1, 'day') : availEndRaw;
+    
+    // Check that the clicked time falls within the availability window.
+    if (!localDate.isBetween(availStart, availEnd, null, '[)')) return false;
+    
+    // Check exclusions: if an exclusion covers the whole day or the clicked time.
+    for (const ex of rawExclusions) {
+      const exStart = dayjs.utc(`${ex.startDate}T${ex.startTime}:00`).local();
+      const exEnd = (ex.endDate && ex.endTime) 
+        ? dayjs.utc(`${ex.endDate}T${ex.endTime}:00`).local() 
+        : exStart;
+      // If exclusion covers the entire day, block the slot.
+      if (exStart.isSameOrBefore(localDate.startOf('day')) && exEnd.isSameOrAfter(localDate.endOf('day'))) {
+        return false;
+      }
+      if (localDate.isBetween(exStart, exEnd, null, '[)')) return false;
+    }
+    
+    // Check booked events from ALL customers.
+    for (const ev of allBookedEvents) {
+      const evStart = dayjs.utc(ev.start).local();
+      const evEnd = dayjs.utc(ev.end).local();
+      if (localDate.isBetween(evStart, evEnd, null, '[)')) return false;
+    }
+    
+    return true;
+  };
 
   // Compute background events (to darken unavailable times) using availability and exclusions.
   const generateBackgroundEvents = (info) => {
     let bgEvents = [];
     const rangeStartLocal = dayjs(info.start).startOf('day');
     const rangeEndLocal = dayjs(info.end).startOf('day');
-
+    const todayStart = dayjs().startOf('day');
+  
     // For each day in the visible range...
     for (let dLocal = rangeStartLocal.clone(); dLocal.isBefore(rangeEndLocal); dLocal = dLocal.add(1, 'day')) {
+
+      if (dLocal.isBefore(todayStart)) {
+        bgEvents.push({
+          id: `past-day-${dLocal.format('YYYY-MM-DD')}`,
+          start: dLocal.clone().startOf('day').toISOString(),
+          end: dLocal.clone().endOf('day').toISOString(),
+          display: 'background',
+          backgroundColor: '#e0e0e0',
+          extendedProps: { disabled: true }
+        });
+        continue;
+      }
+
       const dUtc = dLocal.clone().utc();
       const dayAbbr = dUtc.format('ddd').toLowerCase().slice(0, 3);
       const localDayStart = dLocal.clone().startOf('day');
       const localDayEnd = dLocal.clone().endOf('day');
       const avail = availability[dayAbbr];
-
+  
+      // Grey out whole day if availability is off.
       if (!avail || !avail.enabled) {
         bgEvents.push({
           id: `bg-disabled-${dLocal.format('YYYY-MM-DD')}`,
           start: localDayStart.toISOString(),
           end: localDayEnd.toISOString(),
           display: 'background',
-          backgroundColor: '#e0e0e0'
-        });
-        continue;
-      }
-
-      let [startH, startM] = avail.start.split(':').map(Number);
-      let [endH, endM] = avail.end.split(':').map(Number);
-      let dayStartUtc = dUtc.clone().startOf('day');
-      let windowStartUtc = dayStartUtc.clone().add(startH, 'hour').add(startM, 'minute');
-      let windowEndUtc = dayStartUtc.clone().add(endH, 'hour').add(endM, 'minute');
-
-      if (windowEndUtc.isBefore(windowStartUtc)) {
-        windowEndUtc = windowEndUtc.add(1, 'day');
-      }
-
-      let windowStartLocal = windowStartUtc.local();
-      let windowEndLocal = windowEndUtc.local();
-
-      let availStart = windowStartLocal.isAfter(localDayStart) ? windowStartLocal : localDayStart;
-      let availEnd = windowEndLocal.isBefore(localDayEnd) ? windowEndLocal : localDayEnd;
-
-      if (availEnd.isSameOrBefore(availStart)) {
-        bgEvents.push({
-          id: `bg-disabled-${dLocal.format('YYYY-MM-DD')}`,
-          start: localDayStart.toISOString(),
-          end: localDayEnd.toISOString(),
-          display: 'background',
-          backgroundColor: '#e0e0e0'
+          backgroundColor: '#e0e0e0',
+          extendedProps: { disabled: true }
         });
       } else {
+        let [startH, startM] = avail.start.split(':').map(Number);
+        let [endH, endM] = avail.end.split(':').map(Number);
+        let dayStartUtc = dUtc.clone().startOf('day');
+        let windowStartUtc = dayStartUtc.clone().add(startH, 'hour').add(startM, 'minute');
+        let windowEndUtc = dayStartUtc.clone().add(endH, 'hour').add(endM, 'minute');
+        if (windowEndUtc.isBefore(windowStartUtc)) {
+          windowEndUtc = windowEndUtc.add(1, 'day');
+        }
+        let windowStartLocal = windowStartUtc.local();
+        let windowEndLocal = windowEndUtc.local();
+        let availStart = windowStartLocal.isAfter(localDayStart) ? windowStartLocal : localDayStart;
+        let availEnd = windowEndLocal.isBefore(localDayEnd) ? windowEndLocal : localDayEnd;
+  
+        // Grey out area before availability and after availability.
         if (availStart.isAfter(localDayStart)) {
           bgEvents.push({
             id: `bg-${dLocal.format('YYYY-MM-DD')}-before`,
             start: localDayStart.toISOString(),
             end: availStart.toISOString(),
             display: 'background',
-            backgroundColor: '#e0e0e0'
+            backgroundColor: '#e0e0e0',
+            extendedProps: { disabled: true }
           });
         }
         if (availEnd.isBefore(localDayEnd)) {
@@ -192,30 +258,41 @@ function PublicCalendar() {
             start: availEnd.toISOString(),
             end: localDayEnd.toISOString(),
             display: 'background',
-            backgroundColor: '#e0e0e0'
+            backgroundColor: '#e0e0e0',
+            extendedProps: { disabled: true }
           });
         }
       }
+  
+      // Grey out all past times for the current day.
+      if (dLocal.isSame(dayjs(), 'day')) {
+        const nowLocal = dayjs();
+        bgEvents.push({
+          id: `past-${dLocal.format('YYYY-MM-DD')}`,
+          start: dLocal.clone().startOf('day').toISOString(),
+          end: nowLocal.toISOString(),
+          display: 'background',
+          backgroundColor: '#e0e0e0',
+          extendedProps: { disabled: true }
+        });
+      }
     }
-
-    // Add background events for each exclusion
+  
+    // Add greyed-out areas for each exclusion.
     rawExclusions.forEach(ex => {
-      const exStartUtc = dayjs.utc(`${ex.startDate}T${ex.startTime}`);
-      const exEndUtc = ex.endDate ? dayjs.utc(`${ex.endDate}T${ex.endTime}`) : exStartUtc;
+      const exStartUtc = dayjs.utc(`${ex.startDate}T${ex.startTime}:00`);
+      const exEndUtc = ex.endDate ? dayjs.utc(`${ex.endDate}T${ex.endTime}:00`) : exStartUtc;
       const exStartLocal = exStartUtc.local();
       const exEndLocal = exEndUtc.local();
-
+  
       if (exEndLocal.isBefore(rangeStartLocal) || exStartLocal.isAfter(rangeEndLocal)) return;
-
+  
       for (let d2 = rangeStartLocal.clone(); d2.isBefore(rangeEndLocal); d2 = d2.add(1, 'day')) {
         const dayStart = d2.clone().startOf('day');
         const dayEnd = d2.clone().endOf('day');
-
         if (dayEnd.isBefore(exStartLocal) || dayStart.isAfter(exEndLocal)) continue;
-
         const clampStart = exStartLocal.isAfter(dayStart) ? exStartLocal : dayStart;
         const clampEnd = exEndLocal.isBefore(dayEnd) ? exEndLocal : dayEnd;
-
         bgEvents.push({
           id: `ex-${ex.id}-${d2.format('YYYY-MM-DD')}`,
           start: clampStart.toISOString(),
@@ -223,11 +300,28 @@ function PublicCalendar() {
               ? d2.clone().add(1, 'day').startOf('day').toISOString()
               : clampEnd.toISOString(),
           display: 'background',
-          backgroundColor: '#e0e0e0'
+          backgroundColor: '#e0e0e0',
+          extendedProps: { disabled: true }
         });
       }
     });
-
+  
+    // Add greyed-out areas for ALL booked events (from allBookedEvents) with unique IDs.
+    allBookedEvents.forEach((ev, idx) => {
+      const evStart = dayjs.utc(ev.start).local();
+      const evEnd = dayjs.utc(ev.end).local();
+      if (evEnd.isAfter(rangeStartLocal) && evStart.isBefore(rangeEndLocal)) {
+        bgEvents.push({
+          id: `booked-${ev.id}-${idx}`,
+          start: evStart.toISOString(),
+          end: evEnd.toISOString(),
+          display: 'background',
+          backgroundColor: '#e0e0e0',
+          extendedProps: { disabled: true }
+        });
+      }
+    });
+  
     setBackgroundEvents(bgEvents);
   };
 
@@ -312,6 +406,9 @@ function PublicCalendar() {
 
   // When a date cell is clicked, prefill the start/end with that date.
   const handleDateClick = (info) => {
+    if (!isTimeAvailable(info.date)) {
+      return;
+    }
     const utcDateStr = dayjs(info.dateStr).utc().toISOString();
     setFormData({
       title: '',

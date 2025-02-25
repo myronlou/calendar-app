@@ -777,6 +777,25 @@ app.get('/api/events/available', async (req, res) => {
   }
 });
 
+// Returns all booked events (future events only) with minimal details.
+app.get('/api/events/all-bookings', async (req, res) => {
+  try {
+    const events = await prisma.event.findMany({
+      select: {
+        start: true,
+        end: true
+      },
+      where: {
+        end: { gt: new Date() } // optionally, only future events
+      }
+    });
+    res.json(events);
+  } catch (error) {
+    console.error('Error fetching all bookings:', error);
+    res.status(500).json({ error: 'Failed to fetch bookings' });
+  }
+});
+
 // Get User Events (Authenticated)
 app.get('/api/events', authMiddleware, async (req, res) => {
   try {

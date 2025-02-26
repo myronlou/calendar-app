@@ -877,8 +877,9 @@ app.post('/api/events/auth', authMiddleware, async (req, res) => {
         fullName: eventData.fullName,
         email: emailToUse, // use email from JWT
         phone: eventData.phone,
-        user: { connect: { id: req.user.userId } }
-      }
+        userId: req.user.userId,
+      },
+      include: { user: true }
     });
     
     // (Optionally, send confirmation email or generate a management token here)

@@ -16,19 +16,26 @@
 
 .myModalContent {
   background-color: #fff;
-  width: 420px;
-  max-width: 90%;
+  width: 90%;
+  max-width: 420px; 
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   padding: 24px;
   position: relative;
+  /* Smoothly animate changes to width/max-width */
+  transition: max-width 0.4s ease;
+}
+
+/* When step 2 is active, expand the modal */
+.myModalContent.step2-expanded {
+  max-width: 1200px;
 }
 
 .myModalTitle {
   margin: 0 0 20px 0;
   font-size: 1.25rem;
   font-weight: 600;
-  text-align: center; /* center or left, your choice */
+  text-align: center;
   color: #000;
 }
 
@@ -86,7 +93,6 @@
   font-size: 1.5rem;
   cursor: pointer;
   color: #666;
-  /* Optional: Add a hover effect */
   transition: color 0.2s;
 }
 
@@ -114,7 +120,8 @@
 /************************************************
   4) BUTTON STYLES
 *************************************************/
-.myModalButtons {
+/* A group container for step nav or final buttons */
+.button-group {
   display: flex;
   justify-content: flex-end;
   align-items: center;
@@ -153,24 +160,11 @@
   transition: background-color 0.2s;
 }
 
-.myDeleteButton {
-  background-color: #ccc;
-  color: red;
-  border: none;
-  padding: 0.6rem 1.2rem;
-  font-size: 0.95rem;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.mySecondaryButton:hover:enabled,
-.myDeleteButton:hover:enabled {
+.mySecondaryButton:hover:enabled {
   background-color: #bbb;
 }
 
-.mySecondaryButton:disabled,
-.myDeleteButton:disabled {
+.mySecondaryButton:disabled {
   opacity: 0.7;
   cursor: not-allowed;
 }
@@ -181,38 +175,231 @@
 }
 
 /************************************************
-  5) MUI DATE/TIME PICKER FIXES
+  5) MULTI-STEP & BOOKING LAYOUT
 *************************************************/
-/* Ensure the MUI date/time picker popover is above the overlay */
-.MuiPickersPopper-root,
-.MuiPickerStaticWrapper-root,
-.MuiDatePickerRoot,
-.MuiFormControl-root .MuiTextField-root {
-  z-index: 999999 !important;
+.step-content {
+  position: relative;
+  width: 100%;
+  padding: 0 0.5rem;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
-/* Force the MUI OutlinedInput to look more like our custom input */
-.MuiFormControl-root .MuiOutlinedInput-root {
-  height: auto !important;
-  border-radius: 4px !important;
-  font-size: 0.95rem;
-  padding: 0 !important;
+/* Step 2: 3-column booking layout */
+.step-content.booking-layout {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0;
 }
-.MuiFormControl-root .MuiOutlinedInput-input {
-  padding: 0.5rem 0.6rem !important;
+
+/* Left panel: Summary */
+.booking-layout .left-panel {
+  flex: 1;
+  padding: 1rem;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-right: 1px solid #ddd;
 }
-.MuiFormControl-root .MuiOutlinedInput-notchedOutline {
-  border-color: #ccc !important;
+
+/* Middle panel: Calendar */
+.booking-layout .middle-panel {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+  border-right: 1px solid #ddd;
+}
+
+/* Right panel: Available Time Slots */
+.booking-layout .right-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+}
+
+/* Booking summary texts */
+.booking-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 0;
+}
+.booking-subtitle {
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0;
+}
+.booking-info {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: #444;
+}
+
+/* Time slot panel */
+.time-title {
+  margin: 0 0 1rem;
+  font-weight: 600;
+}
+.timeslot-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.timeslot-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  background-color: #fff;
+  cursor: pointer;
   transition: border-color 0.2s;
 }
-.MuiFormControl-root .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
-  border-color: #666 !important;
+.timeslot-btn:hover {
+  border-color: #FFC72C;
 }
-.MuiFormControl-root .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
-  border-color: #666 !important;
+.timeslot-btn.active {
+  border: 2px solid #FFC72C;
+}
+.no-times-msg {
+  margin-top: 1rem;
+  color: #666;
 }
 
-/* If label text overlaps, hide it or force shrink: */
-/*.MuiFormControl-root .MuiInputLabel-root {
-  display: none !important;
-}*/
+/* Responsive adjustments for booking layout */
+@media (max-width: 900px) {
+  .step-content.booking-layout {
+    flex-direction: column;
+  }
+  .booking-layout .left-panel,
+  .booking-layout .middle-panel {
+    border-right: none;
+    border-bottom: 1px solid #ddd;
+  }
+}
+
+/************************************************
+  6) CALENDAR STYLING
+*************************************************/
+.react-calendar {
+  width: 100% !important;
+  max-width: 420px;
+  background: none;
+  box-shadow: none;
+  border: none;
+  border-radius: 0;
+  font-family: inherit;
+}
+
+.react-calendar__navigation {
+  display: flex;
+  justify-content: space-between;
+  margin: 1rem 0;
+}
+
+.react-calendar__navigation button {
+  background: #fff !important;
+  color: #000;
+  border: none;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  cursor: default;
+}
+
+.react-calendar__month-view__weekdays {
+  flex-basis: 14.2857%;
+  text-align: center;
+  font-weight: 600;
+  color: #666;
+}
+
+.react-calendar__month-view__weekdays__weekday {
+  flex-basis: 14.2857%;
+  text-align: center;
+}
+
+.react-calendar__month-view__days__day {
+  flex-basis: 14.2857%;
+  text-align: center;
+}
+
+.react-calendar__tile {
+  height: 60px;
+  max-width: 60px;
+  text-align: center;
+  padding: 0.5rem;
+  border-radius: 8px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.react-calendar__tile--active {
+  background: #FFC72C;
+  color: #fff;
+}
+
+.react-calendar__tile--now {
+  background: #eaf5ff;
+}
+
+.react-calendar__tile:hover {
+  background: #fafafa;
+}
+
+.custom-calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 1rem 0;
+  font-weight: 600;
+  font-size: 1rem;
+  background-color: #fff !important;
+  padding: 0.5rem !important;
+  border-radius: 4px !important;
+}
+
+.calendar-month-year {
+  margin: 0 1rem !important;
+  color: #333 !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  background-color: #fff !important;
+  padding: 0.5rem 1rem !important;
+  border-radius: 4px !important;
+}
+
+.calendar-nav-btn {
+  background: #fff;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #000 !important;
+  padding: 0.5rem !important;
+  transition: color 0.2s ease;
+}
+
+.calendar-nav-btn:hover {
+  color: #000 !important;
+}
+
+/************************************************
+  7) STEP TRANSITION ANIMATIONS
+*************************************************/
+@keyframes fadeSlideNext {
+  0% { transform: translateX(50px); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+@keyframes fadeSlidePrev {
+  0% { transform: translateX(-50px); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+.animation-container.next .step-content {
+  animation: fadeSlideNext 0.4s forwards;
+}
+.animation-container.prev .step-content {
+  animation: fadeSlidePrev 0.4s forwards;
+}

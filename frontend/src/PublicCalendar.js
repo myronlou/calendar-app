@@ -22,7 +22,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 function PublicCalendar() {
   const [events, setEvents] = useState([]);
   const [backgroundEvents, setBackgroundEvents] = useState([]);
-  const [availability, setAvailability] = useState({}); // Object keyed by day (e.g. { mon: { start, end, enabled } })
+  const [availability, setAvailability] = useState({});
   const [rawExclusions, setRawExclusions] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -37,6 +37,8 @@ function PublicCalendar() {
     phone: '',
     bookingTypeId: ''
   });
+  const [calendarView, setCalendarView] = useState("timeGridWeek");
+  const [nowOffset, setNowOffset] = useState(null);
 
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
@@ -60,6 +62,24 @@ function PublicCalendar() {
     }
   }, [token, navigate]);
 
+  const updateNowOffset = () => {
+    // Only update when in week view
+    if (calendarView !== 'timeGridWeek') {
+      setNowOffset(null);
+      return;
+    }
+    const now = dayjs();
+    const hour = now.hour();
+    const minute = now.minute();
+    // Calculate fraction of day (assuming grid covers 24 hours)
+    const fractionOfDay = (hour * 60 + minute) / (24 * 60);
+    const timeGridEl = document.querySelector('.fc-timegrid-slots');
+    if (!timeGridEl) return;
+    const totalHeight = timeGridEl.offsetHeight;
+    const offsetPx = totalHeight * fractionOfDay;
+    setNowOffset(offsetPx);
+  };
+
   // Fetch customer events
   const fetchEvents = async () => {
     if (!token) return;
@@ -71,7 +91,7 @@ function PublicCalendar() {
       const data = await res.json();
       const formatted = data.map(event => ({
         id: event.id.toString(),
-        title: event.bookingType && event.bookingType.name ? event.bookingType.name : 'Booking',
+        title: event.title,
         start: event.start,
         end: event.end,
         fullName: event.fullName,
@@ -137,11 +157,13 @@ function PublicCalendar() {
     fetchAvailability();
     fetchRawExclusions();
     fetchAllBookings();
+    updateNowOffset();
     const interval = setInterval(() => {
       fetchEvents();
       fetchAvailability();
       fetchRawExclusions();
       fetchAllBookings();
+      updateNowOffset();
     }, 500);
     return () => clearInterval(interval);
   }, [navigate, token]);
@@ -327,6 +349,7 @@ function PublicCalendar() {
 
   // Update background events when the visible calendar range changes.
   const handleDatesSet = (info) => {
+    setCalendarView(info.view.type);
     if (Object.keys(availability).length > 0) {
       generateBackgroundEvents(info);
     }
@@ -343,16 +366,17 @@ function PublicCalendar() {
   }, [availability, rawExclusions]);
 
   // Create, update, and delete event handlers using public endpoints.
-  const handleCreateEvent = async () => {
+  const handleCreateEvent = async (data) => {
     if (!token) return;
     try {
+      const eventData = data || formData;
       const res = await fetch(`${API_URL}/api/events/auth`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({eventData})
       });
       if (!res.ok) throw new Error('Failed to create event');
       const responseData = await res.json();
@@ -479,7 +503,7 @@ function PublicCalendar() {
         <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-          initialView="timeGridWeek"
+          initialView="dayGridMonth"
           timeZone="local"
           selectable={true}
           events={[...events, ...backgroundEvents]}
@@ -487,9 +511,11 @@ function PublicCalendar() {
           dateClick={handleDateClick}
           eventClick={handleEventClick}
           allDaySlot={false}
+          dayMaxEvents={5}
+          expandRows={true}
           headerToolbar={{
             left: 'title',
-            center: 'timeGridWeek,dayGridDay',
+            center: 'dayGridMonth,timeGridWeek,dayGridDay',
             right: 'prev today next'
           }}
           eventContent={(eventInfo) => {
@@ -498,7 +524,7 @@ function PublicCalendar() {
               <div className="custom-event-content">
                 <div className="event-left">
                   <span className="booking-type-dot" style={{ backgroundColor: eventInfo.event.extendedProps.bookingTypeColor || '#007bff' }}></span>
-                  <span className="event-title">{eventInfo.event.extendedProps.fullName}</span>
+                  <span className="event-title">{eventInfo.event.title}</span>
                 </div>
                 <div className="event-right">
                   {dayjs(eventInfo.event.start).format('h A')}
@@ -507,6 +533,11 @@ function PublicCalendar() {
             );
           }}
         />
+        {calendarView === 'timeGridWeek' && nowOffset !== null && (
+          <div className="global-now-indicator" style={{ top: nowOffset }}>
+            <div className="global-now-label">{dayjs().format("h:mm A")}</div>
+          </div>
+        )}
       </div>
       <CreateEventModal
         show={showCreateModal}

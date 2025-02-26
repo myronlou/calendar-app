@@ -370,9 +370,10 @@ function Calendar() {
         dateClick={handleDateClick}
         eventClick={handleEventClick}
         allDaySlot={false}
+        dayMaxEventRows={true}
         headerToolbar={{
           left: 'title',
-          center: 'timeGridWeek,dayGridDay',
+          center: 'dayGridMonth,timeGridWeek,dayGridDay',
           right: 'prev today next'
         }}
         eventContent={(eventInfo) => {

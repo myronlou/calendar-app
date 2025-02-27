@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+// Typically: import jwt_decode from 'jwt-decode';
+// If you have a named import, adjust as needed.
 import { jwtDecode } from 'jwt-decode';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -24,10 +26,12 @@ function PublicCalendar() {
   const [backgroundEvents, setBackgroundEvents] = useState([]);
   const [availability, setAvailability] = useState({});
   const [rawExclusions, setRawExclusions] = useState([]);
+  const [allBookedEvents, setAllBookedEvents] = useState([]);
+
+  // Modals + event data
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [allBookedEvents, setAllBookedEvents] = useState([]);
   const [formData, setFormData] = useState({
     title: '',
     start: '',
@@ -37,13 +41,14 @@ function PublicCalendar() {
     phone: '',
     bookingTypeId: ''
   });
-  const [calendarView, setCalendarView] = useState("timeGridWeek");
-  const [nowOffset, setNowOffset] = useState(null);
+
+  const [calendarView, setCalendarView] = useState('timeGridWeek');
 
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
   const calendarRef = useRef(null);
 
+  // Decode token
   let currentUserEmail = '';
   if (token) {
     try {
@@ -62,34 +67,18 @@ function PublicCalendar() {
     }
   }, [token, navigate]);
 
-  const updateNowOffset = () => {
-    // Only update when in week view
-    if (calendarView !== 'timeGridWeek') {
-      setNowOffset(null);
-      return;
-    }
-    const now = dayjs();
-    const hour = now.hour();
-    const minute = now.minute();
-    // Calculate fraction of day (assuming grid covers 24 hours)
-    const fractionOfDay = (hour * 60 + minute) / (24 * 60);
-    const timeGridEl = document.querySelector('.fc-timegrid-slots');
-    if (!timeGridEl) return;
-    const totalHeight = timeGridEl.offsetHeight;
-    const offsetPx = totalHeight * fractionOfDay;
-    setNowOffset(offsetPx);
-  };
-
-  // Fetch customer events
+  /* ---------------------------------------
+   * Fetch data from your API
+   * --------------------------------------- */
   const fetchEvents = async () => {
     if (!token) return;
     try {
       const res = await fetch(`${API_URL}/api/events`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to fetch events');
       const data = await res.json();
-      const formatted = data.map(event => ({
+      const formatted = data.map((event) => ({
         id: event.id.toString(),
         title: event.title,
         start: event.start,
@@ -119,15 +108,13 @@ function PublicCalendar() {
     }
   };
 
-  // Fetch availability from public endpoint
   const fetchAvailability = async () => {
     try {
       const res = await fetch(`${API_URL}/api/availability`);
       if (!res.ok) throw new Error('Failed to fetch availability');
-      // Now, the backend returns an array (same as admin)
       const data = await res.json();
       const availObj = {};
-      data.forEach(rec => {
+      data.forEach((rec) => {
         availObj[rec.day] = {
           start: rec.start,
           end: rec.end,
@@ -140,7 +127,6 @@ function PublicCalendar() {
     }
   };
 
-  // Fetch exclusions (unchanged)
   const fetchRawExclusions = async () => {
     try {
       const res = await fetch(`${API_URL}/api/public/exclusions`);
@@ -152,75 +138,99 @@ function PublicCalendar() {
     }
   };
 
+  // Example: fetch data on mount + re-fetch every 60 seconds
   useEffect(() => {
     fetchEvents();
+    fetchAllBookings();
     fetchAvailability();
     fetchRawExclusions();
-    fetchAllBookings();
-    updateNowOffset();
+
     const interval = setInterval(() => {
       fetchEvents();
+      fetchAllBookings();
       fetchAvailability();
       fetchRawExclusions();
-      fetchAllBookings();
-      updateNowOffset();
-    }, 500);
+    }, 1000); // once per minute (instead of 1000ms or 500ms)
+
     return () => clearInterval(interval);
   }, [navigate, token]);
 
+  /* ---------------------------------------
+   * Check if a date/time is available
+   * --------------------------------------- */
   const isTimeAvailable = (date) => {
-    // Convert clicked date to local time.
     const localDate = dayjs(date);
-    
-    // Block any time in the past.
+    // Block any time in the past
     if (localDate.isBefore(dayjs())) return false;
-    
-    // Get the availability record for this day (using three-letter abbreviation).
+
+    // Get availability for this day
     const dayAbbr = localDate.format('ddd').toLowerCase().slice(0, 3);
     const availRecord = availability[dayAbbr];
     if (!availRecord || !availRecord.enabled) return false;
-    
-    // Convert availability times (stored as UTC) to local time for the clicked day.
-    const availStart = dayjs.utc(`${localDate.format('YYYY-MM-DD')}T${availRecord.start}:00`).local();
-    const availEndRaw = dayjs.utc(`${localDate.format('YYYY-MM-DD')}T${availRecord.end}:00`).local();
-    const availEnd = availEndRaw.isBefore(availStart) ? availEndRaw.add(1, 'day') : availEndRaw;
-    
-    // Check that the clicked time falls within the availability window.
-    if (!localDate.isBetween(availStart, availEnd, null, '[)')) return false;
-    
-    // Check exclusions: if an exclusion covers the whole day or the clicked time.
+
+    // Convert availability times to local for that day
+    const availStart = dayjs
+      .utc(`${localDate.format('YYYY-MM-DD')}T${availRecord.start}:00`)
+      .local();
+    let availEnd = dayjs
+      .utc(`${localDate.format('YYYY-MM-DD')}T${availRecord.end}:00`)
+      .local();
+
+    if (availEnd.isBefore(availStart)) {
+      // crosses midnight
+      availEnd = availEnd.add(1, 'day');
+    }
+
+    if (!localDate.isBetween(availStart, availEnd, null, '[)')) {
+      return false;
+    }
+
+    // Check exclusions
     for (const ex of rawExclusions) {
       const exStart = dayjs.utc(`${ex.startDate}T${ex.startTime}:00`).local();
-      const exEnd = (ex.endDate && ex.endTime) 
-        ? dayjs.utc(`${ex.endDate}T${ex.endTime}:00`).local() 
+      const exEnd = ex.endDate
+        ? dayjs.utc(`${ex.endDate}T${ex.endTime}:00`).local()
         : exStart;
-      // If exclusion covers the entire day, block the slot.
-      if (exStart.isSameOrBefore(localDate.startOf('day')) && exEnd.isSameOrAfter(localDate.endOf('day'))) {
+
+      // full-day
+      if (
+        exStart.isSameOrBefore(localDate.startOf('day')) &&
+        exEnd.isSameOrAfter(localDate.endOf('day'))
+      ) {
         return false;
       }
-      if (localDate.isBetween(exStart, exEnd, null, '[)')) return false;
+      // partial
+      if (localDate.isBetween(exStart, exEnd, null, '[)')) {
+        return false;
+      }
     }
-    
-    // Check booked events from ALL customers.
+
+    // Check existing bookings
     for (const ev of allBookedEvents) {
       const evStart = dayjs.utc(ev.start).local();
       const evEnd = dayjs.utc(ev.end).local();
-      if (localDate.isBetween(evStart, evEnd, null, '[)')) return false;
+      if (localDate.isBetween(evStart, evEnd, null, '[)')) {
+        return false;
+      }
     }
-    
     return true;
   };
 
-  // Compute background events (to darken unavailable times) using availability and exclusions.
+  /* ---------------------------------------
+   * Generate background events
+   * --------------------------------------- */
   const generateBackgroundEvents = (info) => {
     let bgEvents = [];
     const rangeStartLocal = dayjs(info.start).startOf('day');
     const rangeEndLocal = dayjs(info.end).startOf('day');
     const todayStart = dayjs().startOf('day');
-  
-    // For each day in the visible range...
-    for (let dLocal = rangeStartLocal.clone(); dLocal.isBefore(rangeEndLocal); dLocal = dLocal.add(1, 'day')) {
 
+    for (
+      let dLocal = rangeStartLocal.clone();
+      dLocal.isBefore(rangeEndLocal);
+      dLocal = dLocal.add(1, 'day')
+    ) {
+      // Gray out entire past days
       if (dLocal.isBefore(todayStart)) {
         bgEvents.push({
           id: `past-day-${dLocal.format('YYYY-MM-DD')}`,
@@ -238,8 +248,8 @@ function PublicCalendar() {
       const localDayStart = dLocal.clone().startOf('day');
       const localDayEnd = dLocal.clone().endOf('day');
       const avail = availability[dayAbbr];
-  
-      // Grey out whole day if availability is off.
+
+      // If no availability, gray out entire day
       if (!avail || !avail.enabled) {
         bgEvents.push({
           id: `bg-disabled-${dLocal.format('YYYY-MM-DD')}`,
@@ -252,18 +262,32 @@ function PublicCalendar() {
       } else {
         let [startH, startM] = avail.start.split(':').map(Number);
         let [endH, endM] = avail.end.split(':').map(Number);
-        let dayStartUtc = dUtc.clone().startOf('day');
-        let windowStartUtc = dayStartUtc.clone().add(startH, 'hour').add(startM, 'minute');
-        let windowEndUtc = dayStartUtc.clone().add(endH, 'hour').add(endM, 'minute');
+
+        let windowStartUtc = dUtc
+          .clone()
+          .startOf('day')
+          .add(startH, 'hour')
+          .add(startM, 'minute');
+        let windowEndUtc = dUtc
+          .clone()
+          .startOf('day')
+          .add(endH, 'hour')
+          .add(endM, 'minute');
+
         if (windowEndUtc.isBefore(windowStartUtc)) {
           windowEndUtc = windowEndUtc.add(1, 'day');
         }
-        let windowStartLocal = windowStartUtc.local();
-        let windowEndLocal = windowEndUtc.local();
-        let availStart = windowStartLocal.isAfter(localDayStart) ? windowStartLocal : localDayStart;
-        let availEnd = windowEndLocal.isBefore(localDayEnd) ? windowEndLocal : localDayEnd;
-  
-        // Grey out area before availability and after availability.
+
+        const windowStartLocal = windowStartUtc.local();
+        const windowEndLocal = windowEndUtc.local();
+        const availStart = windowStartLocal.isAfter(localDayStart)
+          ? windowStartLocal
+          : localDayStart;
+        const availEnd = windowEndLocal.isBefore(localDayEnd)
+          ? windowEndLocal
+          : localDayEnd;
+
+        // Gray out before availability
         if (availStart.isAfter(localDayStart)) {
           bgEvents.push({
             id: `bg-${dLocal.format('YYYY-MM-DD')}-before`,
@@ -274,6 +298,7 @@ function PublicCalendar() {
             extendedProps: { disabled: true }
           });
         }
+        // Gray out after availability
         if (availEnd.isBefore(localDayEnd)) {
           bgEvents.push({
             id: `bg-${dLocal.format('YYYY-MM-DD')}-after`,
@@ -285,50 +310,64 @@ function PublicCalendar() {
           });
         }
       }
-  
-      // Grey out all past times for the current day.
+
+      // Gray out past times for today
       if (dLocal.isSame(dayjs(), 'day')) {
-        const nowLocal = dayjs();
         bgEvents.push({
           id: `past-${dLocal.format('YYYY-MM-DD')}`,
           start: dLocal.clone().startOf('day').toISOString(),
-          end: nowLocal.toISOString(),
+          end: dayjs().toISOString(),
           display: 'background',
           backgroundColor: '#e0e0e0',
           extendedProps: { disabled: true }
         });
       }
     }
-  
-    // Add greyed-out areas for each exclusion.
-    rawExclusions.forEach(ex => {
+
+    // Add exclusions
+    rawExclusions.forEach((ex) => {
       const exStartUtc = dayjs.utc(`${ex.startDate}T${ex.startTime}:00`);
-      const exEndUtc = ex.endDate ? dayjs.utc(`${ex.endDate}T${ex.endTime}:00`) : exStartUtc;
+      const exEndUtc = ex.endDate
+        ? dayjs.utc(`${ex.endDate}T${ex.endTime}:00`)
+        : exStartUtc;
       const exStartLocal = exStartUtc.local();
       const exEndLocal = exEndUtc.local();
-  
-      if (exEndLocal.isBefore(rangeStartLocal) || exStartLocal.isAfter(rangeEndLocal)) return;
-  
-      for (let d2 = rangeStartLocal.clone(); d2.isBefore(rangeEndLocal); d2 = d2.add(1, 'day')) {
+
+      if (
+        exEndLocal.isBefore(rangeStartLocal) ||
+        exStartLocal.isAfter(rangeEndLocal)
+      ) {
+        return;
+      }
+
+      for (
+        let d2 = rangeStartLocal.clone();
+        d2.isBefore(rangeEndLocal);
+        d2 = d2.add(1, 'day')
+      ) {
         const dayStart = d2.clone().startOf('day');
         const dayEnd = d2.clone().endOf('day');
-        if (dayEnd.isBefore(exStartLocal) || dayStart.isAfter(exEndLocal)) continue;
-        const clampStart = exStartLocal.isAfter(dayStart) ? exStartLocal : dayStart;
+        if (dayEnd.isBefore(exStartLocal) || dayStart.isAfter(exEndLocal)) {
+          continue;
+        }
+        const clampStart = exStartLocal.isAfter(dayStart)
+          ? exStartLocal
+          : dayStart;
         const clampEnd = exEndLocal.isBefore(dayEnd) ? exEndLocal : dayEnd;
         bgEvents.push({
           id: `ex-${ex.id}-${d2.format('YYYY-MM-DD')}`,
           start: clampStart.toISOString(),
           end: clampEnd.isSame(dayEnd)
-              ? d2.clone().add(1, 'day').startOf('day').toISOString()
-              : clampEnd.toISOString(),
+            ? d2.clone().add(1, 'day').startOf('day').toISOString()
+            : clampEnd.toISOString(),
           display: 'background',
           backgroundColor: '#e0e0e0',
           extendedProps: { disabled: true }
         });
       }
     });
-  
-    // Add greyed-out areas for ALL booked events (from allBookedEvents) with unique IDs.
+
+    // Already-booked events
     allBookedEvents.forEach((ev, idx) => {
       const evStart = dayjs.utc(ev.start).local();
       const evEnd = dayjs.utc(ev.end).local();
@@ -343,11 +382,13 @@ function PublicCalendar() {
         });
       }
     });
-  
+
     setBackgroundEvents(bgEvents);
   };
 
-  // Update background events when the visible calendar range changes.
+  /* ---------------------------------------
+   * FullCalendar callbacks
+   * --------------------------------------- */
   const handleDatesSet = (info) => {
     setCalendarView(info.view.type);
     if (Object.keys(availability).length > 0) {
@@ -355,6 +396,7 @@ function PublicCalendar() {
     }
   };
 
+  // Re-generate background if availability/exclusions changed
   useEffect(() => {
     if (calendarRef.current && Object.keys(availability).length > 0) {
       const calendarApi = calendarRef.current.getApi();
@@ -363,9 +405,12 @@ function PublicCalendar() {
         end: calendarApi.view.activeEnd
       });
     }
+    // eslint-disable-next-line
   }, [availability, rawExclusions]);
 
-  // Create, update, and delete event handlers using public endpoints.
+  /* ---------------------------------------
+   * Create, Update, Delete events
+   * --------------------------------------- */
   const handleCreateEvent = async (data) => {
     if (!token) return;
     try {
@@ -373,15 +418,15 @@ function PublicCalendar() {
       const res = await fetch(`${API_URL}/api/events/auth`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({eventData})
+        body: JSON.stringify({ eventData })
       });
       if (!res.ok) throw new Error('Failed to create event');
       const responseData = await res.json();
       const createdEvent = responseData.event;
-      setEvents(prev => [...prev, createdEvent]);
+      setEvents((prev) => [...prev, createdEvent]);
       setShowCreateModal(false);
       return createdEvent;
     } catch (error) {
@@ -390,21 +435,25 @@ function PublicCalendar() {
     }
   };
 
-  const handleUpdateEvent = async () => {
+  const handleUpdateEvent = async (updatedData) => {
     if (!token || !selectedEvent) return;
     try {
       const res = await fetch(`${API_URL}/api/events/auth/${selectedEvent.id}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(updatedData)
       });
-      if (!res.ok) throw new Error('Failed to update event');
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Server responded with:', errorText);
+        throw new Error('Failed to update event');
+      }
       const updatedEvent = await res.json();
-      setEvents(prev =>
-        prev.map(event => event.id === updatedEvent.id ? updatedEvent : event)
+      setEvents((prevEvents) =>
+        prevEvents.map((ev) => (ev.id === updatedEvent.id ? updatedEvent : ev))
       );
       setShowEditModal(false);
       return updatedEvent;
@@ -419,20 +468,21 @@ function PublicCalendar() {
     try {
       await fetch(`${API_URL}/api/events/${selectedEvent.id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
-      setEvents(prev => prev.filter(event => event.id !== selectedEvent.id));
+      setEvents((prev) => prev.filter((e) => e.id !== selectedEvent.id));
       setShowEditModal(false);
     } catch (error) {
       console.error('Error deleting event:', error);
     }
   };
 
-  // When a date cell is clicked, prefill the start/end with that date.
+  /* ---------------------------------------
+   * FullCalendar handlers
+   * --------------------------------------- */
   const handleDateClick = (info) => {
-    if (!isTimeAvailable(info.date)) {
-      return;
-    }
+    if (!isTimeAvailable(info.date)) return;
+    // If you want to store times in local, remove `.utc()`
     const utcDateStr = dayjs(info.dateStr).utc().toISOString();
     setFormData({
       title: '',
@@ -446,9 +496,8 @@ function PublicCalendar() {
     setShowCreateModal(true);
   };
 
-  // When an event is clicked, open the edit modal.
   const handleEventClick = (info) => {
-    const event = events.find(e => e.id === info.event.id);
+    const event = events.find((e) => e.id === info.event.id);
     if (event) {
       setSelectedEvent(event);
       setFormData({
@@ -464,6 +513,9 @@ function PublicCalendar() {
     }
   };
 
+  /* ---------------------------------------
+   * Render
+   * --------------------------------------- */
   return (
     <div className="public-calendar-page">
       <header className="public-calendar-header">
@@ -499,13 +551,15 @@ function PublicCalendar() {
           </button>
         </div>
       </header>
+
       <div className="public-calendar-content">
         <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
           timeZone="local"
-          selectable={true}
+          selectable
+          nowIndicator={true}
           events={[...events, ...backgroundEvents]}
           datesSet={handleDatesSet}
           dateClick={handleDateClick}
@@ -518,12 +572,26 @@ function PublicCalendar() {
             center: 'dayGridMonth,timeGridWeek,dayGridDay',
             right: 'prev today next'
           }}
+          slotMinTime="00:00:00"
+          slotMaxTime="24:00:00"
+          slotLabelFormat={{
+            hour: 'numeric',
+            minute: '2-digit',
+            meridiem: 'short'
+          }}
           eventContent={(eventInfo) => {
             if (eventInfo.event.display === 'background') return null;
             return (
               <div className="custom-event-content">
                 <div className="event-left">
-                  <span className="booking-type-dot" style={{ backgroundColor: eventInfo.event.extendedProps.bookingTypeColor || '#007bff' }}></span>
+                  <span
+                    className="booking-type-dot"
+                    style={{
+                      backgroundColor:
+                        eventInfo.event.extendedProps.bookingTypeColor ||
+                        '#007bff'
+                    }}
+                  ></span>
                   <span className="event-title">{eventInfo.event.title}</span>
                 </div>
                 <div className="event-right">
@@ -533,12 +601,9 @@ function PublicCalendar() {
             );
           }}
         />
-        {calendarView === 'timeGridWeek' && nowOffset !== null && (
-          <div className="global-now-indicator" style={{ top: nowOffset }}>
-            <div className="global-now-label">{dayjs().format("h:mm A")}</div>
-          </div>
-        )}
       </div>
+
+      {/* Create & Edit Modals */}
       <CreateEventModal
         show={showCreateModal}
         onClose={() => setShowCreateModal(false)}

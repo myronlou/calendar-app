@@ -385,6 +385,28 @@
   color: #000 !important;
 }
 
+.myDeleteButton {
+  background-color: #ccc;
+  color: red;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  font-size: 0.95rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-left: 0.5rem; /* or as needed */
+}
+
+.myDeleteButton:hover:enabled {
+  background-color: #bbb;
+}
+
+.myDeleteButton:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+
 /************************************************
   7) STEP TRANSITION ANIMATIONS
 *************************************************/

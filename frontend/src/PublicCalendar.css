@@ -231,6 +231,9 @@
   flex: 1 1 auto;        /* Takes remaining space in the cell */
   overflow-y: auto;      /* Adds a scrollbar if events overflow */ 
 }
+.fc .fc-timegrid-body {
+  position: relative !important;
+}
 .fc-day-sat,
 .fc-day-sun {
   background-color: #fff !important;
@@ -250,29 +253,41 @@
 }
 .fc-timegrid-now-indicator-line,
 .fc-timegrid-now-indicator-arrow {
-  display: none !important;
+  background: none !important;
+  border: none !important;
+  display: block !important;
+  height: 0 !important; /* effectively hide the original line */
+  position: relative;  /* so we can use ::before for our new line */
 }
 
-.global-now-indicator {
+.fc-timegrid-now-indicator-line::before {
+  content: '';
   position: absolute;
   left: 0;
   right: 0;
   height: 2px;
-  background-color: #FFD700; /* gold line */
-  pointer-events: none;
+  background: repeating-linear-gradient(
+    to right,
+    gold 0,
+    gold 5px,
+    transparent 5px,
+    transparent 10px
+  );
   z-index: 9999;
 }
-.global-now-label {
+
+.fc-timegrid-now-indicator-line::after {
+  content: 'NOW';
   position: absolute;
+  top: -1.25em;  /* move it above the line */
   left: 0;
-  top: -10px;
-  background-color: #fff;
+  background-color: gold;
   color: #444;
-  padding: 2px 4px;
-  font-size: 0.8rem;
+  font-size: 0.5rem;
+  padding: 2px 6px;
   border-radius: 3px;
-  pointer-events: none;
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  z-index: 9999;
 }
 
 /* ---------------------------
@@ -345,11 +360,21 @@
 ---------------------------- */
 
 /* NEW: Keep time labels (12 AM, 1 AM, etc.) visible in normal color */
-.fc .fc-timegrid-axis-cushion,
-.fc .fc-timegrid-slot-label,
-.fc .fc-timegrid-slot-label-cushion {
+.fc-timegrid-slot-label,
+.fc-timegrid-slot-label-cushion,
+.fc-scrollgrid-shrink,
+.fc-scrollgrid-shrink-frame,
+.fc-scrollgrid-shrink-cushion {
+  /* Sometimes a theme might set width: 0 or display: none. */
+  display: block !important;
+  width: auto !important;
   color: #1d1d1f !important;
-  font-size: 0.85rem;
+  visibility: visible !important;
+  min-width: 70px; 
+  background-color: #fafafa;
+  left: 0;
+  z-index: 2;
+  position: sticky;
 }
 
 /* CHANGED: Do NOT remove horizontal slot lines.
@@ -367,18 +392,15 @@
   padding: 8px 10px;
 }
 
-/* NEW: Keep the time axis separate but preserve the grid lines. 
-   We do NOT remove the border-right here so the axis remains "attached" 
-   if you want the dividing line. If you want no dividing line, set border-right: none. */
-   .fc .fc-timegrid-axis {
-    background-color: #fafafa;
-    position: sticky;
-    left: 0;
-    z-index: 2;
-    padding: 4px;
-    border-right: 1px solid #e5e5ea;
-    min-width: 60px; /* or whatever width you prefer */
-  }
+.fc .fc-timegrid-axis {
+  display: table-cell !important;
+  left: 0;
+  z-index: 2;
+  width: auto !important;
+  /* a minimum width for the labels */
+  min-width: 60px; 
+  background-color: #fafafa;
+}
 
 /* OPTIONAL: Remove the outer border of the entire calendar, but keep internal grid lines */
 .fc .fc-scrollgrid {

@@ -76,16 +76,19 @@ initializeAvailability().catch(console.error);
  * 2) No overlap with any exclusion
  * 3) No overlap with existing events (double-booking prevention)
  * 
- * @param {Date} startDate - Proposed event start
- * @param {Date} endDate   - Proposed event end
+ * @param {Date} startDate - Proposed event start (JavaScript Date in UTC)
+ * @param {Date} endDate   - Proposed event end (JavaScript Date in UTC)
  * @param {PrismaClient} prisma
  * @param {number} [excludeEventId] - (Optional) If updating an existing event, pass its ID to ignore itself
  * @returns {Promise<{ok: boolean, message?: string}>}
  */
 async function validateAvailabilityAndExclusions(startDate, endDate, prisma, excludeEventId) {
-  // 1) Check if day is enabled & time is within availability
+  // 1) Check if the weekday is enabled & the time is within availability (in UTC)
   const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-  const dayAbbr = days[startDate.getDay()]; // e.g. 'mon'
+  
+  // Use getUTCDay() instead of getDay()
+  const dayIndex = startDate.getUTCDay(); // Sunday=0,...Saturday=6, in UTC
+  const dayAbbr = days[dayIndex];        // e.g. "mon", "tue", etc.
   
   const availabilityRecord = await prisma.availability.findUnique({
     where: { day: dayAbbr }
@@ -94,17 +97,18 @@ async function validateAvailabilityAndExclusions(startDate, endDate, prisma, exc
     return { ok: false, message: "Selected day is not available for booking" };
   }
 
-  // Convert availability window to minutes from midnight
+  // Convert the availability window (e.g. "09:00" to [9, 0]) => minutes from midnight
   const [availStartHour, availStartMinute] = availabilityRecord.start.split(':').map(Number);
-  const [availEndHour, availEndMinute] = availabilityRecord.end.split(':').map(Number);
-  const availStartTotal = availStartHour * 60 + availStartMinute;
-  const availEndTotal = availEndHour * 60 + availEndMinute;
+  const [availEndHour,   availEndMinute]   = availabilityRecord.end.split(':').map(Number);
+  const availStartTotal = availStartHour * 60 + availStartMinute; 
+  const availEndTotal   = availEndHour   * 60 + availEndMinute;
 
-  // Convert chosen times to minutes from midnight
-  const chosenStartTotal = startDate.getHours() * 60 + startDate.getMinutes();
-  const chosenEndTotal = endDate.getHours() * 60 + endDate.getMinutes();
+  // Convert the chosen times to minutes-from-midnight in UTC
+  // (because startDate is a JS Date in UTC, but .getUTCHours() gives the UTC hour)
+  const chosenStartTotal = startDate.getUTCHours() * 60 + startDate.getUTCMinutes();
+  const chosenEndTotal   = endDate.getUTCHours()   * 60 + endDate.getUTCMinutes();
 
-  // Must be within availability window
+  // Must be within the availability window (in UTC)
   if (chosenStartTotal < availStartTotal || chosenEndTotal > availEndTotal) {
     return { ok: false, message: "Selected time is outside available booking hours" };
   }
@@ -114,7 +118,7 @@ async function validateAvailabilityAndExclusions(startDate, endDate, prisma, exc
   const overlappingExclusions = await prisma.exclusion.findMany({
     where: {
       start: { lte: endDate },
-      end: { gte: startDate }
+      end:   { gte: startDate }
     }
   });
   if (overlappingExclusions.length > 0) {
@@ -126,7 +130,7 @@ async function validateAvailabilityAndExclusions(startDate, endDate, prisma, exc
   // Also exclude the event with ID = excludeEventId if provided (updating scenario)
   const overlapFilter = {
     start: { lt: endDate },
-    end: { gt: startDate }
+    end:   { gt: startDate }
   };
   if (excludeEventId) {
     overlapFilter.id = { not: excludeEventId };
@@ -139,6 +143,7 @@ async function validateAvailabilityAndExclusions(startDate, endDate, prisma, exc
     return { ok: false, message: "This timeslot is already booked" };
   }
 
+  // If all checks pass, the slot is valid
   return { ok: true };
 }
 
@@ -914,47 +919,55 @@ app.get('/api/events/manage', authMiddleware, async (req, res) => {
 app.put('/api/events/auth/:id', authMiddleware, async (req, res) => {
   try {
     const eventId = parseInt(req.params.id, 10);
+
     if (isNaN(eventId)) {
       return res.status(400).json({ error: 'Invalid event ID' });
     }
-    
+
     // Find the event and ensure it belongs to the authenticated user.
     const event = await prisma.event.findUnique({
       where: { id: eventId }
     });
+
     if (!event || event.userId !== req.user.userId) {
       return res.status(404).json({ error: 'Event not found' });
     }
-    
+
     // Force the email from the token, ignoring any client-supplied value.
     const emailToUse = req.user.email.toLowerCase();
-    
+
+    // 3) Deconstruct the incoming data
     const { start, fullName, phone, bookingTypeId } = req.body;
     if (!start || !fullName || !phone || !bookingTypeId) {
+      console.log('DEBUG => Missing fields => returning 400');
       return res.status(400).json({ error: 'Missing required fields' });
     }
-    
+
+    // 5) Construct the new start Date
     const startDate = new Date(start);
     if (isNaN(startDate.getTime())) {
       return res.status(400).json({ error: 'Invalid start date' });
     }
-    
-    // Retrieve the booking type to calculate the new end date.
+
+    // 6) Retrieve the booking type
     const bookingType = await prisma.bookingType.findUnique({
       where: { id: parseInt(bookingTypeId, 10) }
     });
+
     if (!bookingType) {
       return res.status(400).json({ error: 'Invalid booking type' });
     }
+
+    // 7) Compute new end date
     const endDate = new Date(startDate.getTime() + bookingType.duration * 60 * 1000);
-    
-    // Validate availability and overlapping events (exclude current event).
+
+    // 8) Validate availability & overlap
     const availabilityCheck = await validateAvailabilityAndExclusions(startDate, endDate, prisma, eventId);
     if (!availabilityCheck.ok) {
-      return res.status(400).json({ error: availabilityCheck.message });
+      return res.status(400).json({ error: availabilityCheck.message, debugStart: startDate.toISOString(),debugEnd: endDate.toISOString() });
     }
-    
-    // Update the event (force email from token).
+
+    // 9) If all good, update the event
     const updatedEvent = await prisma.event.update({
       where: { id: eventId },
       data: {
@@ -963,12 +976,12 @@ app.put('/api/events/auth/:id', authMiddleware, async (req, res) => {
         fullName: fullName,
         phone: phone,
         bookingTypeId: parseInt(bookingTypeId, 10),
-        email: emailToUse // force customer's email
+        email: emailToUse
       }
     });
-    
+
     res.json(updatedEvent);
-    
+
   } catch (error) {
     console.error('Authenticated event update error:', error);
     res.status(500).json({ error: 'Server error' });

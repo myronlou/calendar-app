@@ -84,6 +84,48 @@
   box-shadow: 0 0 0 2px rgba(255, 199, 44, 0.5);
 }
 
+.admin-calendar-header {
+  background-color: transparent;
+  color: #1d1d1f;
+  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.app-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.header-right {
+  display: flex;
+  gap: 1rem;
+}
+
+.new-booking-button {
+  background: #f0f0f5;
+  border: 1px solid #d1d1d6;
+  color: black;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  font-weight: bold;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s, box-shadow 0.3s;
+}
+
+.new-booking-button:hover {
+  background-color: #e5b12c;
+  color: white;
+}
+
 /* ---------------------------
    3) FullCalendar Toolbar
 ---------------------------- */
@@ -306,16 +348,21 @@
    9) Custom Event Content (Updated)
 ---------------------------- */
 .custom-event-content {
-  color: black;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  /* The variable --event-bg will come from the element's style */
+  background-color: #3A3A3A; /* or #3A3A3A, #444444 */
+  color: #fff; /* or #000 if your background is light */
+  height: 100%;
   width: 100%;
-  font-size: 0.75rem;
-  padding: 2px 4px;
-  background-color: #ececec; 
   border-radius: 4px;
+  box-sizing: border-box;
+  padding: 4px;
+  overflow: hidden; /* so text doesn't overflow the block */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
 }
+
 .event-left {
   display: flex;
   align-items: center;
@@ -405,4 +452,18 @@
 /* OPTIONAL: Remove the outer border of the entire calendar, but keep internal grid lines */
 .fc .fc-scrollgrid {
   border: none;
+}
+.fc .fc-event,
+.fc .fc-event a,
+.fc .fc-event:focus,
+.fc .fc-event a:focus,
+.fc .fc-event:active,
+.fc .fc-event a:active,
+.fc .fc-event:hover,
+.fc .fc-event a:hover,
+.fc .fc-event:focus-visible,
+.fc .fc-event a:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
 }

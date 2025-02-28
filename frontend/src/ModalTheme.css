@@ -16,12 +16,13 @@
 
 .myModalContent {
   background-color: #fff;
-  width: 90%;
-  max-width: 420px; 
+  max-width: 600px; 
+  max-height: 90vh;
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   padding: 24px;
   position: relative;
+  overflow-y: auto;
   /* Smoothly animate changes to width/max-width */
   transition: max-width 0.4s ease;
 }
@@ -106,6 +107,7 @@
 .myPhoneContainer {
   display: flex;
 }
+
 .myPhoneInput {
   width: 100% !important;
   font-size: 0.95rem !important;
@@ -191,7 +193,7 @@
 .step-content.booking-layout {
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 0;
 }
 
@@ -221,7 +223,9 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
   padding: 1rem;
+  height: 450px !important;
 }
 
 /* Booking summary texts */

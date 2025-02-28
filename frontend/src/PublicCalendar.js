@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-// Typically: import jwt_decode from 'jwt-decode';
-// If you have a named import, adjust as needed.
 import { jwtDecode } from 'jwt-decode';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -565,7 +563,7 @@ function PublicCalendar() {
           dateClick={handleDateClick}
           eventClick={handleEventClick}
           allDaySlot={false}
-          dayMaxEvents={5}
+          dayMaxEventRows={true}
           expandRows={true}
           headerToolbar={{
             left: 'title',
@@ -595,7 +593,7 @@ function PublicCalendar() {
                   <span className="event-title">{eventInfo.event.title}</span>
                 </div>
                 <div className="event-right">
-                  {dayjs(eventInfo.event.start).format('h A')}
+                  {dayjs(eventInfo.event.start).format('HH:mm')}
                 </div>
               </div>
             );

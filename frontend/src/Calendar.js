@@ -357,11 +357,34 @@ function Calendar() {
 
   return (
     <div className="admin-calendar">
-      <h2>Admin Calendar</h2>
+      <div className="admin-calendar-header">
+        <div className="header-left">
+          <h2 className="app-title">Admin Calendar</h2>
+        </div>
+        <div className="header-right">
+          <button 
+            className="new-booking-button"
+            onClick={() => {
+              setFormData({
+                title: '',
+                start: '',
+                end: '',
+                fullName: '',
+                email: '',
+                phone: '',
+                bookingTypeId: ''
+              });
+              setShowCreateModal(true);
+            }}
+          >
+            New Booking
+          </button>
+        </div>
+      </div>
       <FullCalendar
         ref={calendarRef}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-        initialView="timeGridWeek"
+        initialView="dayGridMonth"
         timeZone="local"
         selectable={true}
         // Merge admin events with background events.
@@ -371,6 +394,7 @@ function Calendar() {
         eventClick={handleEventClick}
         allDaySlot={false}
         dayMaxEventRows={true}
+        nowIndicator={true}
         headerToolbar={{
           left: 'title',
           center: 'dayGridMonth,timeGridWeek,dayGridDay',
@@ -393,7 +417,7 @@ function Calendar() {
               </div>
               <div className="event-right">
                 {/* Example: format your event start time for display */}
-                {dayjs(eventInfo.event.start).format('h A')}
+                {dayjs(eventInfo.event.start).format('HH:mm')}
               </div>
             </div>
           );

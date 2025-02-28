@@ -674,6 +674,15 @@ app.get('/api/events/available', async (req, res) => {
     let dayStart = new Date(Date.UTC(year, month - 1, day, availStartHour, availStartMin, 0));
     let dayEnd   = new Date(Date.UTC(year, month - 1, day, availEndHour,   availEndMin,   0));
 
+    // ==============================
+    // *** CROSS-MIDNIGHT FIX ***
+    // If end is numerically before start, interpret it as crossing midnight.
+    // e.g. start=14:00, end=04:00 => dayEnd < dayStart => dayEnd += 24h
+    // ==============================
+    if (dayEnd < dayStart) {
+      dayEnd = new Date(dayEnd.getTime() + 24 * 60 * 60 * 1000);
+    }
+
     // If dayEnd is already past 'now', or the day is fully ended, check
     if (dayEnd <= now) {
       return res.json({ availableTimes: [] });
@@ -1098,6 +1107,122 @@ app.get('/api/admin/events', authMiddleware, adminMiddleware, async (req, res) =
   }
 });
 
+// Admin route: show all timeslots for the admin’s local day from 00:00 local -> 00:00 next day local,
+// ignoring availability/exclusions, but skipping overlap.
+app.get('/api/admin/events/available', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { date, bookingTypeId, offset } = req.query;
+    // `date` is "2025-02-28" local
+    // `offset` is the admin’s UTC offset in minutes (e.g. -300 for UTC-5). 
+    // If you can’t get offset from the front-end, you might store it in the user’s profile or pass it some other way.
+
+    if (!date || !bookingTypeId || offset == null) {
+      return res.status(400).json({ 
+        error: "Missing 'date' (YYYY-MM-DD), 'bookingTypeId', or 'offset' query param" 
+      });
+    }
+
+    const [year, month, day] = date.split('-').map(Number);
+    if (!year || !month || !day) {
+      return res.status(400).json({ error: 'Invalid date format (expected YYYY-MM-DD)' });
+    }
+    const numericOffset = parseInt(offset, 10); // e.g. -300 for UTC-5
+
+    // 1) Build a local midnight date for that day in *local time*
+    //    e.g. 2025-02-28 00:00 local
+    const localMidnight = new Date(year, month - 1, day, 0, 0, 0);
+
+    // 2) Convert that local date => UTC by adjusting for offset
+    //    localMidnight in ms => subtract offset*60*1000
+    const localMidnightMs = localMidnight.getTime() - (numericOffset * 60 * 1000);
+    const dayStart = new Date(localMidnightMs); // this is the UTC date/time for local midnight
+
+    // 3) dayEnd = dayStart + 24h
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    // 4) Fetch the bookingType => get duration
+    const bookingType = await prisma.bookingType.findUnique({
+      where: { id: parseInt(bookingTypeId, 10) }
+    });
+    if (!bookingType) {
+      return res.status(400).json({ error: 'Invalid bookingTypeId' });
+    }
+    const bookingDurationMinutes = bookingType.duration;
+
+    // 5) Partial shift => skip times behind server’s current time if you only want future
+    const now = new Date();
+    if (dayEnd <= now) {
+      // entire local day ended in server’s UTC
+      return res.json({ availableTimes: [] });
+    }
+    if (dayStart < now) {
+      // round up to next 30-min block
+      const currentUTCMinutes = now.getUTCMinutes();
+      const remainder = currentUTCMinutes % 30;
+      const newMinutes = remainder === 0 ? currentUTCMinutes : currentUTCMinutes + (30 - remainder);
+
+      const shifted = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        now.getUTCHours(),
+        newMinutes,
+        0
+      ));
+      if (shifted >= dayEnd) {
+        return res.json({ availableTimes: [] });
+      }
+      // update dayStart
+      dayStart.setTime(shifted.getTime());
+    }
+
+    // 6) Fetch existing events => skip overlap
+    const events = await prisma.event.findMany({
+      where: {
+        start: { lt: dayEnd },
+        end:   { gt: dayStart }
+      }
+    });
+
+    // 7) Generate free timeslots in 30-min increments
+    const freeTimes = [];
+    let current = new Date(dayStart);
+
+    while (current < dayEnd) {
+      const slotStart = new Date(current);
+      const slotEnd = new Date(slotStart.getTime() + bookingDurationMinutes * 60 * 1000);
+
+      if (slotEnd > dayEnd) {
+        break;
+      }
+
+      // overlap check
+      let isOccupied = false;
+      for (const evt of events) {
+        if (slotStart < evt.end && slotEnd > evt.start) {
+          isOccupied = true;
+          break;
+        }
+      }
+
+      if (!isOccupied) {
+        // e.g. "04:30"
+        const hh = String(slotStart.getUTCHours()).padStart(2, '0');
+        const mm = String(slotStart.getUTCMinutes()).padStart(2, '0');
+        freeTimes.push(`${hh}:${mm}`);
+      }
+
+      current = new Date(current.getTime() + 30 * 60 * 1000);
+    }
+
+    return res.json({ availableTimes: freeTimes });
+
+  } catch (error) {
+    console.error('Error in /api/admin/events/available:', error);
+    return res.status(500).json({ error: 'Failed to fetch admin available times' });
+  }
+});
+
 // Update any booking
 app.put('/api/admin/events/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
@@ -1355,8 +1480,6 @@ app.put('/api/admin/booking-types/:id', authMiddleware, adminMiddleware, async (
     res.status(500).json({ error: 'Failed to update booking type' });
   }
 });
-
-
 
 // DELETE booking type
 app.delete('/api/admin/booking-types/:id', authMiddleware, adminMiddleware, async (req, res) => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
@@ -29,6 +29,19 @@ function localToUTCISO(dateYYYYMMDD, localHHmm) {
   return localDate.toISOString();
 }
 
+/**
+ * Convert the local day selected in the calendar => the correct UTC date param.
+ * If the user picks 2025-03-01 local but that corresponds to 2025-03-02 in UTC, 
+ * we pass "2025-03-02" to the server.
+ */
+function localDateToUtcDateParam(localDateObj) {
+  // localDateObj is something like new Date(2025, 2, 1) => March 1, local time at 00:00
+  // Convert it to an ISO string => "2025-03-01T05:00:00.000Z" (if user is UTC-5)
+  // Then slice out the UTC day => "2025-03-02" if it's actually next day in UTC
+  const utcString = localDateObj.toISOString(); 
+  return utcString.slice(0, 10); // e.g. "2025-03-02"
+}
+
 function CreateEventModal({
   show,
   onClose,
@@ -47,6 +60,9 @@ function CreateEventModal({
   const [emailError, setEmailError] = useState('');
   const [calendarDate, setCalendarDate] = useState(null);
   const [timeSlots, setTimeSlots] = useState([]);
+  const middlePanelRef = useRef(null);
+  const rightPanelRef = useRef(null);
+  const token = localStorage.getItem('token');
 
   // Fetch available booking types from backend.
   useEffect(() => {
@@ -73,8 +89,22 @@ function CreateEventModal({
     }
     if (!show) {
       setCurrentStep(1);
+      setCalendarDate(null);
+      setTimeSlots([]);
     }
   }, [isAdmin, currentUserEmail, setFormData, show]);
+
+  useEffect(() => {
+    if (show && currentStep === 2) {
+      const middlePanel = middlePanelRef.current;
+      const rightPanel = rightPanelRef.current;
+      if (middlePanel && rightPanel) {
+        const middleHeight = middlePanel.offsetHeight;
+        rightPanel.style.maxHeight = middleHeight + `px`;
+        rightPanel.style.overflowY = 'auto';
+      }
+    }
+  }, [show, currentStep]);
 
   if (!show) return null;
 
@@ -110,38 +140,97 @@ function CreateEventModal({
   const fetchAvailableTimes = async (chosenDate, bookingTypeId) => {
     try {
       if (!chosenDate || !bookingTypeId) return;
-      const url = `${API_URL}/api/events/available?date=${chosenDate}&bookingTypeId=${bookingTypeId}`;
-      const res = await fetch(url);
+
+      // We compute the local offset in minutes (e.g. -300 for UTC-5).
+      const offset = -new Date().getTimezoneOffset(); 
+      // If isAdmin => /api/admin/events/available + offset, else => /api/events/available
+      let url;
+      if (isAdmin) {
+        url = `${API_URL}/api/admin/events/available?date=${chosenDate}&bookingTypeId=${bookingTypeId}&offset=${offset}`;
+      } else {
+        url = `${API_URL}/api/events/available?date=${chosenDate}&bookingTypeId=${bookingTypeId}`;
+      }
+
+      const headers = isAdmin
+        ? { Authorization: `Bearer ${token}` }
+        : {};
+
+      console.log(url)
+
+      const res = await fetch(url, { headers });
       if (!res.ok) throw new Error('Failed to load available times');
       const data = await res.json();
-      const mapped = (data.availableTimes || []).map((utcString) => {
+      const rawSlots = data.availableTimes || [];
+
+      // Convert UTC "HH:MM" => local "HH:MM", then sort
+      let mapped = rawSlots.map(utcString => {
         const localLabel = utcToLocalTimeLabel(utcString, chosenDate);
         return { utc: utcString, local: localLabel };
       });
+
+      // Sort by local "HH:MM" ascending
+      mapped.sort((a, b) => {
+        const [aH, aM] = a.local.split(':').map(Number);
+        const [bH, bM] = b.local.split(':').map(Number);
+        return (aH * 60 + aM) - (bH * 60 + bM);
+      });
+
+      const now = new Date();
+      const nowLocalDay   = now.getDate();
+      const nowLocalMonth = now.getMonth();     // 0-based
+      const nowLocalYear  = now.getFullYear();
+
+      // chosenDate is a "YYYY-MM-DD" string. Compare to local now
+      const chosenYear  = parseInt(chosenDate.slice(0, 4), 10);
+      const chosenMonth = parseInt(chosenDate.slice(5, 7), 10) - 1;
+      const chosenDay   = parseInt(chosenDate.slice(8, 10), 10);
+
+      const isTodayLocal = (
+        nowLocalDay === chosenDay &&
+        nowLocalMonth === chosenMonth &&
+        nowLocalYear === chosenYear
+      );
+
+      if (isTodayLocal) {
+        // Filter out times behind local now
+        const nowLocalTotalMins = now.getHours() * 60 + now.getMinutes();
+        mapped = mapped.filter(slot => {
+          const [h, m] = slot.local.split(':').map(Number);
+          const slotTotal = h * 60 + m;
+          return slotTotal >= nowLocalTotalMins;
+        });
+      }
+
       setTimeSlots(mapped);
     } catch (error) {
-      console.error(error);
+      console.error('fetchAvailableTimes error:', error);
       setTimeSlots([]);
     }
   };
 
   // Handle calendar date selection.
-  const handleCalendarChange = (date) => {
-    setCalendarDate(date);
-    if (!date) {
-      setFormData((prev) => ({ ...prev, date: '', time: '' }));
+  const handleCalendarChange = (dateObj) => {
+    // dateObj is the local date the user picks from the calendar
+    setCalendarDate(dateObj);
+
+    if (!dateObj) {
+      setFormData(prev => ({ ...prev, date: '', time: '' }));
       setTimeSlots([]);
       return;
     }
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    const isoDate = `${yyyy}-${mm}-${dd}`;
-    setFormData((prev) => ({ ...prev, date: isoDate, time: '' }));
+
+    // Convert local date's midnight => UTC date param, e.g. "2025-03-02"
+    const utcDateParam = localDateToUtcDateParam(
+      new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), 0, 0, 0)
+    );
+
+    // Store that param in formData
+    setFormData(prev => ({ ...prev, date: utcDateParam, time: '' }));
     setTimeSlots([]);
 
+    // If we already picked a bookingType, fetch times
     if (formData.bookingTypeId) {
-      fetchAvailableTimes(isoDate, formData.bookingTypeId);
+      fetchAvailableTimes(utcDateParam, formData.bookingTypeId);
     }
   };
 

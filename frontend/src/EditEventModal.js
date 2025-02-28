@@ -54,6 +54,7 @@ function EditEventModal({
 
   // Keep track of the event's original day so we only show "(current)" if the user remains on that day
   const originalDayRef = useRef('');
+  const token = localStorage.getItem('token');
 
   const hasInitialized = useRef(false);
 
@@ -113,18 +114,67 @@ function EditEventModal({
   /* ====================== 5) FETCH AVAILABLE TIMES ====================== */
   const fetchAvailableTimes = async (chosenDate, bookingTypeId) => {
     try {
-      const url = `${API_URL}/api/events/available?date=${chosenDate}&bookingTypeId=${bookingTypeId}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('Failed to load available times');
+      let url;
+      if (isAdmin) {
+        // offset in minutes => e.g. -300 for UTC-5
+        const offset = -new Date().getTimezoneOffset();
+        url = `${API_URL}/api/admin/events/available?date=${chosenDate}&bookingTypeId=${bookingTypeId}&offset=${offset}`;
+      } else {
+        url = `${API_URL}/api/events/available?date=${chosenDate}&bookingTypeId=${bookingTypeId}`;
+      }
+
+      // If admin => pass token in headers
+      const headers = isAdmin
+        ? { Authorization: `Bearer ${token}` }
+        : {};
+
+      const res = await fetch(url, { headers });
+      if (!res.ok) {
+        throw new Error(`Failed to load available times (HTTP ${res.status})`);
+      }
       const data = await res.json();
 
-      const mapped = (data.availableTimes || []).map(utcString => {
+      // Convert returned UTC "HH:MM" => local times
+      let mapped = (data.availableTimes || []).map(utcString => {
         const localLabel = utcToLocalTimeLabel(utcString, chosenDate);
         return { utc: utcString, local: localLabel, existing: false };
       });
+
+      // Sort by local time ascending
+      mapped.sort((a, b) => {
+        const [aH, aM] = a.local.split(':').map(Number);
+        const [bH, bM] = b.local.split(':').map(Number);
+        return (aH * 60 + aM) - (bH * 60 + bM);
+      });
+
+      // Filter out times behind local now if it's "today" in local terms
+      const now = new Date();
+      const nowLocalYear  = now.getFullYear();
+      const nowLocalMonth = now.getMonth();
+      const nowLocalDay   = now.getDate();
+
+      const chosenYear  = parseInt(chosenDate.slice(0, 4), 10);
+      const chosenMonth = parseInt(chosenDate.slice(5, 7), 10) - 1;
+      const chosenDay   = parseInt(chosenDate.slice(8, 10), 10);
+
+      const isTodayLocal = (
+        nowLocalYear === chosenYear &&
+        nowLocalMonth === chosenMonth &&
+        nowLocalDay === chosenDay
+      );
+
+      if (isTodayLocal) {
+        const nowLocalTotalMins = now.getHours() * 60 + now.getMinutes();
+        mapped = mapped.filter(slot => {
+          const [h, m] = slot.local.split(':').map(Number);
+          const slotTotal = h * 60 + m;
+          return slotTotal >= nowLocalTotalMins;
+        });
+      }
+
       setTimeSlots(mapped);
     } catch (error) {
-      console.error(error);
+      console.error('Error fetching available times:', error);
       setTimeSlots([]);
     }
   };

@@ -23,8 +23,7 @@
   padding: 24px;
   position: relative;
   overflow-y: auto;
-  /* Smoothly animate changes to width/max-width */
-  transition: max-width 0.4s ease;
+  transition: max-width 0.5s ease;
 }
 
 /* When step 2 is active, expand the modal */

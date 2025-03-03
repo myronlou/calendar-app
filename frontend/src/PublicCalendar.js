@@ -412,6 +412,7 @@ function PublicCalendar() {
   const handleCreateEvent = async (data) => {
     if (!token) return;
     try {
+      console.log("handleCreateEvent => data =>", data);
       const eventData = data || formData;
       const res = await fetch(`${API_URL}/api/events/auth`, {
         method: 'POST',
@@ -421,7 +422,14 @@ function PublicCalendar() {
         },
         body: JSON.stringify({ eventData })
       });
-      if (!res.ok) throw new Error('Failed to create event');
+      if (!res.ok) {
+        // Attempt to parse the error message
+        const errBody = await res.json().catch(() => ({}));
+        return {
+          error: true,
+          errorMessage: errBody.error || 'Failed to create event (unknown error)'
+        };
+      }
       const responseData = await res.json();
       const createdEvent = responseData.event;
       setEvents((prev) => [...prev, createdEvent]);

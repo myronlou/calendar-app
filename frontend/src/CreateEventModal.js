@@ -60,9 +60,9 @@ function CreateEventModal({
   const [emailError, setEmailError] = useState('');
   const [calendarDate, setCalendarDate] = useState(null);
   const [timeSlots, setTimeSlots] = useState([]);
-  const middlePanelRef = useRef(null);
-  const rightPanelRef = useRef(null);
+  const [errorMessage, setErrorMessage] = useState('');
   const token = localStorage.getItem('token');
+  const [step2Expanded, setStep2Expanded] = useState(false);
 
   // Fetch available booking types from backend.
   useEffect(() => {
@@ -94,18 +94,6 @@ function CreateEventModal({
     }
   }, [isAdmin, currentUserEmail, setFormData, show]);
 
-  useEffect(() => {
-    if (show && currentStep === 2) {
-      const middlePanel = middlePanelRef.current;
-      const rightPanel = rightPanelRef.current;
-      if (middlePanel && rightPanel) {
-        const middleHeight = middlePanel.offsetHeight;
-        rightPanel.style.maxHeight = middleHeight + `px`;
-        rightPanel.style.overflowY = 'auto';
-      }
-    }
-  }, [show, currentStep]);
-
   if (!show) return null;
 
   // Email validation function.
@@ -121,6 +109,14 @@ function CreateEventModal({
   };
 
   if (!show) return null;
+
+  // 2) Handle closing the modal => reset error, step
+  const handleClose = () => {
+    setErrorMessage('');
+    setCurrentStep(1);
+    onClose();
+    setStep2Expanded(false); 
+  };
 
   // Step 1: Validate that full name, phone, and booking type (plus email for admin) are provided.
   const isStep1Valid = () => {
@@ -243,6 +239,7 @@ function CreateEventModal({
       if (!isStep1Valid()) {
         return; // You could display an error if you want
       }
+      setStep2Expanded(true); 
       setCurrentStep(2);
 
     } else if (currentStep === 2) {
@@ -251,6 +248,7 @@ function CreateEventModal({
         return; // You could display an error if you want
       }
       setLoading(true);
+      setErrorMessage('');
       try {
         // Build updated data (including the final UTC start)
         const updatedData = {
@@ -259,8 +257,11 @@ function CreateEventModal({
         };
         // Call parent's onSubmit with updatedData
         const result = await onSubmit(updatedData);
-        if (result && !result.error) {
-          // Reset step and close
+        if (result && result.error) {
+          // If your handleCreateEvent returns { error: true, errorMessage: '...' }
+          setErrorMessage(result.errorMessage || 'Failed to create event');
+        } else {
+          // success => close
           setCurrentStep(1);
           onClose();
         }
@@ -272,10 +273,21 @@ function CreateEventModal({
     }
   };
 
+  const handleOverlayClick = (e) => {
+    // If user clicks the overlay itself, close
+    // But if user clicks the modal content, do not close
+    if (e.target.className === 'myModalOverlay') {
+      setCurrentStep(1);
+      handleClose();
+    }
+  };
+
   // Navigation: Back to step 1.
   const handleBack = () => {
     if (currentStep > 1) {
       setCurrentStep((prev) => prev - 1);
+      setErrorMessage('');
+      setStep2Expanded(false); 
     }
   };
 
@@ -303,18 +315,31 @@ function CreateEventModal({
   };
 
   // Construct the dynamic class name for the modal
-  const modalClasses = `myModalContent ${currentStep === 2 ? 'step2-expanded' : ''}`;
+  // const modalClasses = `myModalContent ${currentStep === 2 ? 'step2-expanded' : ''}`;
 
   return (
-    <div className="myModalOverlay" onClick={onClose}>
+    <div className="myModalOverlay" onClick={handleOverlayClick}>
       <motion.div
-        className={modalClasses}
+        className={`myModalContent ${step2Expanded ? 'step2-expanded' : ''}`}
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.8 }}
         onClick={(e) => e.stopPropagation()}
       >
+        <button
+          type="button"
+          className="myCloseButton"
+          onClick={handleClose}
+        >
+          &times;
+        </button>
         <h2 className="myModalTitle">Create Event</h2>
+
+        {errorMessage && (
+          <div className="error-message" style={{ color: 'red', marginBottom: '1rem' }}>
+            {errorMessage}
+          </div>
+        )}
 
         {/* Step content container */}
         <div className="step-content-container">
@@ -535,17 +560,6 @@ function CreateEventModal({
                 'Next'
               )}
             </button>
-            {/* Optional: Add a Cancel button if desired */}
-            {/* 
-            <button
-              type="button"
-              className="mySecondaryButton"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Cancel
-            </button> 
-            */}
           </div>
         </div>
       </motion.div>

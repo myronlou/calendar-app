@@ -100,13 +100,21 @@ async function validateAvailabilityAndExclusions(startDate, endDate, prisma, exc
   // Convert the availability window (e.g. "09:00" to [9, 0]) => minutes from midnight
   const [availStartHour, availStartMinute] = availabilityRecord.start.split(':').map(Number);
   const [availEndHour,   availEndMinute]   = availabilityRecord.end.split(':').map(Number);
-  const availStartTotal = availStartHour * 60 + availStartMinute; 
-  const availEndTotal   = availEndHour   * 60 + availEndMinute;
+  let availStartTotal = availStartHour * 60 + availStartMinute; 
+  let availEndTotal   = availEndHour   * 60 + availEndMinute;
 
   // Convert the chosen times to minutes-from-midnight in UTC
   // (because startDate is a JS Date in UTC, but .getUTCHours() gives the UTC hour)
-  const chosenStartTotal = startDate.getUTCHours() * 60 + startDate.getUTCMinutes();
-  const chosenEndTotal   = endDate.getUTCHours()   * 60 + endDate.getUTCMinutes();
+  let chosenStartTotal = startDate.getUTCHours() * 60 + startDate.getUTCMinutes();
+  let chosenEndTotal   = endDate.getUTCHours()   * 60 + endDate.getUTCMinutes();
+
+  if (availEndTotal < availStartTotal) {
+    availEndTotal += 1440;
+    if (chosenStartTotal < availStartTotal) {
+      chosenStartTotal += 1440;
+      chosenEndTotal += 1440;
+    }
+  }
 
   // Must be within the availability window (in UTC)
   if (chosenStartTotal < availStartTotal || chosenEndTotal > availEndTotal) {
@@ -397,7 +405,7 @@ app.get('/api/events/validate-token', authMiddleware, (req, res) => {
 });
 
 // -------------------- EVENT ROUTES --------------------
-// Create Event (Authenticated + Guest)
+// Create Event (Guest)
 app.post('/api/events', async (req, res) => {
   try {
     const { eventData, token } = req.body;
@@ -486,58 +494,10 @@ app.post('/api/events', async (req, res) => {
       return res.status(400).json({ error: 'Booking time is already in the past' });
     }
 
-    // 10) Figure out the day’s availability (in UTC)
-    // Extract year, month, day in UTC from startDate
-    const year = startDate.getUTCFullYear();
-    const month = startDate.getUTCMonth();
-    const day = startDate.getUTCDate();
-
-    // Build a date at UTC midnight for that day
-    const dayAtMidnightUTC = new Date(Date.UTC(year, month, day, 0, 0, 0));
-    const dayIndexUTC = dayAtMidnightUTC.getUTCDay(); // 0=Sun,...6=Sat
-    const dayAbbr = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][dayIndexUTC];
-
-    const availability = await prisma.availability.findUnique({
-      where: { day: dayAbbr }
-    });
-    if (!availability || !availability.enabled) {
-      return res.status(400).json({ error: 'This day is not available for booking' });
-    }
-
-    // 11) Build the day’s start/end in UTC from availability
-    const [availStartHour, availStartMin] = availability.start.split(':').map(Number);
-    const [availEndHour,   availEndMin]   = availability.end.split(':').map(Number);
-
-    const dayStart = new Date(Date.UTC(year, month, day, availStartHour, availStartMin, 0));
-    const dayEnd   = new Date(Date.UTC(year, month, day, availEndHour,   availEndMin,   0));
-
-    // If the booking extends beyond dayEnd or starts before dayStart, reject
-    if (startDate < dayStart || endDate > dayEnd) {
-      return res.status(400).json({ error: 'Selected time is outside available booking hours' });
-    }
-
-    // 12) Check exclusions overlap
-    // Overlap if (exclusion.start < endDate) && (exclusion.end > startDate)
-    const exclusions = await prisma.exclusion.findMany({
-      where: {
-        start: { lt: endDate },
-        end: { gt: startDate }
-      }
-    });
-    if (exclusions.length > 0) {
-      return res.status(400).json({ error: 'Selected time is excluded from booking' });
-    }
-
-    // 13) Check existing events overlap
-    // Overlap if (event.start < endDate) && (event.end > startDate)
-    const overlappingEvents = await prisma.event.findMany({
-      where: {
-        start: { lt: endDate },
-        end: { gt: startDate }
-      }
-    });
-    if (overlappingEvents.length > 0) {
-      return res.status(400).json({ error: 'This timeslot is already booked' });
+    // Validate availability (including exclusions and overlapping events)
+    const availabilityCheck = await validateAvailabilityAndExclusions(startDate, endDate, prisma);
+    if (!availabilityCheck.ok) {
+      return res.status(400).json({ error: availabilityCheck.message });
     }
 
     // 14) If we reach here, the entire block [startDate, endDate] is valid. Proceed to create.
@@ -554,7 +514,7 @@ app.post('/api/events', async (req, res) => {
         fullName: eventData.fullName,
         email: emailToUse,
         phone: eventData.phone,
-        user: existingUser ? { connect: { id: existingUser.id } } : undefined
+        userId: existingUser ? existingUser.id : null
       }
     });
 
@@ -1330,7 +1290,10 @@ app.delete('/api/admin/events/:id', authMiddleware, adminMiddleware, async (req,
 // Admin Create Event Endpoint with Customer Confirmation Email
 app.post('/api/admin/events', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const eventData = req.body;
+    const eventData = req.body.eventData;
+    if (!eventData) {
+      return res.status(400).json({ error: 'Invalid request format' });
+    }
 
     // Validate required fields
     const requiredFields = ['start', 'fullName', 'email', 'phone', 'bookingTypeId'];
@@ -1379,7 +1342,7 @@ app.post('/api/admin/events', authMiddleware, adminMiddleware, async (req, res) 
         fullName: eventData.fullName,
         email: eventData.email.toLowerCase(),
         phone: eventData.phone,
-        user: existingUser ? { connect: { id: existingUser.id } } : undefined
+        userId: existingUser ? existingUser.id : null
       }
     });
 

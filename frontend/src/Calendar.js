@@ -264,18 +264,27 @@ function Calendar() {
     }
   }, [adminAvailability, rawExclusions]);
 
-  const handleCreateEvent = async () => {
+  const handleCreateEvent = async (data) => {
     if (!token) return;
     try {
+      console.log("handleCreateEvent => data =>", data);
+      const eventData = data || formData;
       const res = await fetch(`${API_URL}/api/admin/events`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({ eventData })
       });
-      if (!res.ok) throw new Error('Failed to create event');
+      if (!res.ok) {
+        // Attempt to parse the error message
+        const errBody = await res.json().catch(() => ({}));
+        return {
+          error: true,
+          errorMessage: errBody.error || 'Failed to create event (unknown error)'
+        };
+      }
       const responseData = await res.json();
       const createdEvent = responseData.event;
       setEvents(prev => [...prev, createdEvent]);
@@ -287,7 +296,7 @@ function Calendar() {
     }
   };
 
-  const handleUpdateEvent = async () => {
+  const handleUpdateEvent = async (updatedData) => {
     if (!token || !selectedEvent) return;
     try {
       const res = await fetch(`${API_URL}/api/admin/events/${selectedEvent.id}`, {
@@ -296,9 +305,16 @@ function Calendar() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(updatedData)
       });
-      if (!res.ok) throw new Error('Failed to update event');
+      if (!res.ok) {
+        // Attempt to parse the error message
+        const errBody = await res.json().catch(() => ({}));
+        return {
+          error: true,
+          errorMessage: errBody.error || 'Failed to create event (unknown error)'
+        };
+      }
       const updatedEvent = await res.json();
       setEvents(prev => prev.map(event => event.id === updatedEvent.id ? updatedEvent : event));
       setShowEditModal(false);
